@@ -3,8 +3,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN useradd -m -u 10001 appuser
-COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 RUN chown -R appuser:appuser /app
