@@ -2,11 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { Award, CheckCircle2, Download, ExternalLink, ShieldX } from 'lucide-react';
 import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
-import { apiRequest, getAccessToken } from '../services/apiClient';
+import { API_BASE, apiRequest, getAccessToken } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
 import type { CertificateOut, PublicCertificateVerification } from '../types/api';
-
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 export function MyCertificatesPage() {
   const { user } = useAppState();

@@ -1,4 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api/v1';
+function resolveApiBase(): string {
+  const raw = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
+  if (!raw) return '/api/v1';
+  return raw.endsWith('/api/v1') ? raw : `${raw}/api/v1`;
+}
+
+export const API_BASE = resolveApiBase();
+export const API_ORIGIN = API_BASE.replace(/\/api\/v1$/, '');
 
 let accessTokenMemory: string | null = null;
 let csrfTokenMemory: string | null = null;
@@ -54,11 +61,20 @@ export async function apiRequest<T>(
     headers.set('Authorization', `Bearer ${accessTokenMemory}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    credentials: 'include',
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      credentials: 'include',
+      headers,
+    });
+  } catch {
+    throw new ApiError(
+      0,
+      'network_error',
+      `No se pudo conectar con la API (${API_BASE}). Verifica que el backend esté activo, CORS_ORIGINS coincida y VITE_API_URL sea correcta.`
+    );
+  }
 
   if (res.status === 401 && retryOnAuth && (await tryRefresh())) {
     return apiRequest<T>(path, options, false);

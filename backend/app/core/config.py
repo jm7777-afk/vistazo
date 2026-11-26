@@ -21,7 +21,7 @@ def _parse_bool(value: str | None, default: bool = False) -> bool:
 def _parse_origins(value: str | None) -> list[str]:
     if not value:
         return ["http://localhost:5173"]
-    return [item.strip() for item in value.split(",") if item.strip()]
+    return [item.strip().rstrip("/") for item in value.split(",") if item.strip()]
 
 
 def _normalize_database_url(raw_url: str) -> str:

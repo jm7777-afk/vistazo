@@ -2,11 +2,9 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Heart, Layers, Zap } from 'lucide-react';
 import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
-import { apiRequest } from '../services/apiClient';
+import { API_ORIGIN, apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
 import type { LibraryItem } from '../types/api';
-
-const API_ORIGIN = (import.meta.env.VITE_API_URL ?? '/api/v1').replace(/\/api\/v1$/, '');
 
 export function VisualLibraryPage() {
   const { user } = useAppState();
