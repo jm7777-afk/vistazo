@@ -29,6 +29,9 @@ class SubmitAttemptResponse(BaseModel):
     lesson_score_pct: Decimal
     completed_challenges: int
     total_challenges: int
+    xp_awarded: int = 0
+    next_review_at: datetime | None = None
+    unlocked_library_items: int = 0
 
 
 class LessonProgressOut(BaseModel):

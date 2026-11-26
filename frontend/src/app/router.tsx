@@ -6,6 +6,8 @@ import { CourseDetailPage } from '../pages/CourseDetailPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LessonPlayerPage } from '../pages/LessonPlayerPage';
 import { CoordinatorPage, InstructorPage, ProfilePage, SuperAdminPage } from '../pages/RoleDashboards';
+import { SpacedReviewPage } from '../pages/SpacedReviewPage';
+import { VisualLibraryPage } from '../pages/VisualLibraryPage';
 
 export function AppRouter() {
   return (
@@ -17,6 +19,8 @@ export function AppRouter() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/reviews" element={<SpacedReviewPage />} />
+          <Route path="/library" element={<VisualLibraryPage />} />
           <Route path="/courses/:courseId" element={<CourseDetailPage />} />
           <Route path="/lessons/:lessonVersionId" element={<LessonPlayerPage />} />
           <Route path="/instructor" element={<InstructorPage />} />

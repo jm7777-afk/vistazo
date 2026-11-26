@@ -18,6 +18,8 @@ from app.modules.challenges.evaluators import get_challenge_handler
 from app.modules.challenges.models import Challenge
 from app.modules.courses.models import Course, Lesson, LessonVersion, Module
 from app.modules.curriculum.models import Classroom, ClassroomMember
+from app.modules.gamification.service import apply_challenge_gamification
+from app.modules.media.service import unlock_lesson_media_for_student
 from app.modules.progress.models import ChallengeAttempt, LessonProgress, StudentCompetency
 from app.modules.progress.schemas import (
     LessonProgressOut,
@@ -26,6 +28,7 @@ from app.modules.progress.schemas import (
     SubmitAttemptRequest,
     SubmitAttemptResponse,
 )
+from app.modules.spaced_repetition.service import record_challenge_review
 from app.modules.tenants.models import OrganizationMember
 
 router = APIRouter(tags=["progress"])
@@ -57,20 +60,21 @@ def submit_challenge_attempt(
 
     ch, lv, course = row
     org_id: uuid.UUID | None = course.organization_id
+    classroom_obj: Classroom | None = None
 
     if payload.classroom_id is not None:
-        classroom = db.scalar(
+        classroom_obj = db.scalar(
             select(Classroom).where(Classroom.id == payload.classroom_id, Classroom.deleted_at.is_(None))
         )
-        if not classroom:
+        if not classroom_obj:
             raise NotFoundError("Aula no encontrada")
-        if org_id is not None and classroom.organization_id != org_id:
+        if org_id is not None and classroom_obj.organization_id != org_id:
             raise ForbiddenError("El aula no corresponde a la organización del curso")
-        org_id = classroom.organization_id
+        org_id = classroom_obj.organization_id
         if not current_user.is_super_admin:
             enrolled = db.scalar(
                 select(ClassroomMember).where(
-                    ClassroomMember.classroom_id == classroom.id,
+                    ClassroomMember.classroom_id == classroom_obj.id,
                     ClassroomMember.user_id == current_user.id,
                     ClassroomMember.deleted_at.is_(None),
                     ClassroomMember.enrollment_status == "enrolled",
@@ -197,6 +201,7 @@ def submit_challenge_attempt(
         )
     )
     now = datetime.now(timezone.utc)
+    was_completed_before = lp is not None and lp.status == "completed"
     if not lp:
         lp = LessonProgress(
             user_id=current_user.id,
@@ -219,6 +224,8 @@ def submit_challenge_attempt(
         if is_lesson_completed:
             lp.status = "completed"
             lp.completed_at = lp.completed_at or now
+
+    lesson_just_completed = is_lesson_completed and not was_completed_before
 
     # Actualiza competencia asociada si existe
     if ch.competency_id is not None:
@@ -254,6 +261,41 @@ def submit_challenge_attempt(
             sc.mastery_status = "achieved" if sc.mastery_score >= Decimal("80.00") else "in_progress"
             sc.last_evaluated_at = now
 
+    # Repetición espaciada SM-2, gamificación y desbloqueo de biblioteca visual
+    sr_item = record_challenge_review(
+        db,
+        user_id=current_user.id,
+        organization_id=org_id,
+        challenge=ch,
+        is_correct=eval_result.is_correct,
+        attempt_number=attempt.attempt_number,
+        hints_used=attempt.hints_used,
+        response_time_ms=attempt.response_time_ms,
+        now=now,
+    )
+    apply_challenge_gamification(
+        db,
+        user_id=current_user.id,
+        organization_id=org_id,
+        classroom_id=payload.classroom_id,
+        challenge_id=ch.id,
+        is_correct=eval_result.is_correct,
+        score_awarded=eval_result.score_awarded,
+        is_safety_critical=ch.is_safety_critical,
+        energy_enabled=classroom_obj.energy_enabled if classroom_obj else False,
+        max_energy=classroom_obj.max_energy if classroom_obj else 5,
+        lesson_just_completed=lesson_just_completed,
+    )
+    unlocked_count = 0
+    if lesson_just_completed:
+        unlocked_count = unlock_lesson_media_for_student(
+            db,
+            user_id=current_user.id,
+            lesson_version_id=lv.id,
+            challenge_ids=[item.id for item in all_challenges],
+        )
+
+    xp_awarded = eval_result.score_awarded + (25 if lesson_just_completed else 0)
     db.commit()
     return SubmitAttemptResponse(
         attempt_id=attempt.id,
@@ -267,6 +309,9 @@ def submit_challenge_attempt(
         lesson_score_pct=lp.best_score_pct,
         completed_challenges=lp.completed_challenges,
         total_challenges=lp.total_challenges,
+        xp_awarded=xp_awarded,
+        next_review_at=sr_item.next_review_at,
+        unlocked_library_items=unlocked_count,
     )
 
 

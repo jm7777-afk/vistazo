@@ -22,6 +22,8 @@ from app.modules.curriculum.models import (
     InstructorAssignment,
     Program,
 )
+from app.modules.gamification.models import Badge
+from app.modules.media.models import ChallengeMediaAsset, MediaAsset
 from app.modules.rbac.models import Permission, Role, RolePermission
 from app.modules.tenants.models import Organization, OrganizationMember
 
@@ -455,6 +457,64 @@ def seed_database(db: Session) -> None:
     )
 
     db.add_all([*challenges_inst, public_challenge])
+    db.flush()
+
+    badge_first = Badge(
+        organization_id=None,
+        code="FIRST_RESCUE_LESSON",
+        name="Primera Guardia Completada",
+        description="Completa tu primera lección operativa sin omitir protocolos críticos.",
+        criteria_json={"type": "lesson_completed", "min_score_pct": 80},
+    )
+    media_pls = MediaAsset(
+        organization_id=brigada.id,
+        competency_id=comp_triage.id,
+        uploaded_by=instructor.id,
+        title="Esquema Posición Lateral de Seguridad (PLS)",
+        description="Guía visual paso a paso para permeabilizar vía aérea sin trauma cervical.",
+        tags_json=["rescate", "via-aerea", "pls"],
+        education_level="rescue",
+        visibility="institutional",
+        media_format="svg",
+        mime_type="image/svg+xml",
+        storage_key=f"orgs/{brigada.id}/pls_seed.svg",
+        byte_size=1024,
+        processing_status="ready",
+    )
+    media_start = MediaAsset(
+        organization_id=brigada.id,
+        competency_id=comp_triage.id,
+        uploaded_by=instructor.id,
+        title="Tarjeta Flash: Código de Colores Triaje START",
+        description="Clasificación rápida Rojo, Amarillo, Verde y Negro en incidentes con múltiples víctimas.",
+        tags_json=["triaje", "start", "emergencias"],
+        education_level="rescue",
+        visibility="institutional",
+        media_format="svg",
+        mime_type="image/svg+xml",
+        storage_key=f"orgs/{brigada.id}/start_seed.svg",
+        byte_size=1024,
+        processing_status="ready",
+    )
+    db.add_all([badge_first, media_pls, media_start])
+    db.flush()
+
+    db.add_all(
+        [
+            ChallengeMediaAsset(
+                challenge_id=challenges_inst[0].id,
+                media_asset_id=media_pls.id,
+                role="primary",
+                order_index=0,
+            ),
+            ChallengeMediaAsset(
+                challenge_id=challenges_inst[1].id,
+                media_asset_id=media_start.id,
+                role="primary",
+                order_index=0,
+            ),
+        ]
+    )
     db.commit()
 
 

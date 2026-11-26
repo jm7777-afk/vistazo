@@ -2,20 +2,18 @@
 
 Plataforma LMS modular con aislamiento multi-tenant estricto, modo institucional y modo estudio libre, motor extensible de retos interactivos, repetición espaciada, biblioteca visual, asistente pedagógico IA y certificación digital verificable.
 
-## Estado del proyecto — Fase 1 (MVP Piloto Brigada de Rescate)
+## Estado del proyecto — Fases 1 y 2 implementadas
 
-Implementación actual de **Fase 1**:
-- **Backend (`FastAPI` + `SQLAlchemy 2.x` + `Alembic` + `PostgreSQL`)**:
-  - Autenticación segura (JWT access token de corta duración + refresh token opaco rotativo con detección de reuso y protección CSRF).
-  - Arquitectura multi-tenant (`Shared Schema` con `organization_id` obligatorio en endpoints institucionales) + Modo Estudio Libre (`organization_id IS NULL`, `visibility = 'public'`).
-  - RBAC granular (`super_admin`, `coordinator`, `instructor`, `student` + permisos granulares y auditoría en `audit_logs`).
-  - Programas formativos, versiones inmutables de pensum (`curriculum_versions`), aulas (`classrooms`), matrículas (`classroom_members`) y asignación de instructores (`instructor_assignments`).
-  - Cursos públicos e institucionales, módulos, lecciones con versionado inmutable (`lesson_versions`).
-  - Motor extensible de los **6 tipos de retos**: `visual_concept_card`, `matching`, `sequence_ordering`, `interactive_zones`, `decision_simulation`, `fill_in_blanks` con validación Pydantic y evaluación exclusivamente en backend.
-  - Progreso por estudiante, aula y versión de lección + competencias acumuladas.
-- **Frontend (`React` + `TypeScript` + `Vite` + `Tailwind CSS` + `TanStack Query` + `PWA`)**:
-  - Diseño Mobile-First con adaptación a 3 perfiles visuales (`kids`, `youth`, `pro`).
-  - Catálogo público de estudio libre, login/registro, selector de organización, dashboards por rol (Estudiante, Instructor, Coordinador, SuperAdmin), mapa de aprendizaje, reproductor interactivo de los 6 retos y estados completos (carga, error, vacío, éxito).
+### Fase 1 (MVP Piloto Brigada de Rescate + Estudio Libre)
+- Autenticación JWT + refresh token rotativo con detección de reuso y CSRF.
+- Multi-tenancy estricto (`organization_id`) y RBAC granular con auditoría inmutable.
+- Programas, versiones de pensum, aulas, matrículas, asignación de instructores, cursos públicos/institucionales y lecciones versionadas.
+- Motor extensible de los **6 tipos de retos**: `visual_concept_card`, `matching`, `sequence_ordering`, `interactive_zones`, `decision_simulation`, `fill_in_blanks`.
+
+### Fase 2 (Aprendizaje Inteligente)
+- **Repetición Espaciada SM-2** (`spaced_repetition_items`, `review_sessions`) con tope de 45 días para protocolos de seguridad crítica (`is_safety_critical`) y recuperación inmediata tras errores.
+- **Biblioteca Visual y Multimedia** (`media_assets`, `student_library_items`): validación MIME/tamaño, transcodificación FFmpeg (GIF→WebP/miniatura), URLs firmadas HMAC-SHA256 con expiración corta, desbloqueo automático por lección y **Modo Entrenamiento Flash**.
+- **Gamificación y Analíticas**: XP, rachas diarias, energía configurable con **Biblioteca de Recuperación de Energía** (sin penalizar retos de rescate), insignias, ranking por aula y panel analítico de instructor.
 
 ## Inicio rápido con Docker
 

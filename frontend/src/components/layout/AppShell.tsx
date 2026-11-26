@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, Compass, LayoutDashboard, LogOut, Shield, UserCircle2, Users } from 'lucide-react';
+import { BookOpen, Brain, Compass, Layers, LayoutDashboard, LogOut, Shield, UserCircle2, Users } from 'lucide-react';
 import { useAppState } from '../../stores/AppContext';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navItems = [
     { to: '/catalog', label: 'Catálogo Libre', icon: Compass, show: true },
     { to: '/dashboard', label: 'Mi Aprendizaje', icon: LayoutDashboard, show: Boolean(user) },
+    { to: '/reviews', label: 'Repaso', icon: Brain, show: Boolean(user) },
+    { to: '/library', label: 'Biblioteca', icon: Layers, show: Boolean(user) },
     {
       to: '/instructor',
       label: 'Instructor',

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
-import type { ClassroomOut, ClassroomStudentOut, UIProfile } from '../types/api';
+import type { ClassroomAnalytics, ClassroomOut, ClassroomStudentOut, UIProfile } from '../types/api';
 
 export function InstructorPage() {
   const { activeOrg } = useAppState();
@@ -24,6 +24,13 @@ export function InstructorPage() {
     enabled: Boolean(activeOrg && activeClassroomId),
   });
 
+  const analyticsQuery = useQuery({
+    queryKey: ['classroom-analytics', activeOrg?.organization_id, activeClassroomId],
+    queryFn: () =>
+      apiRequest<ClassroomAnalytics>(`/orgs/${activeOrg!.organization_id}/analytics/classrooms/${activeClassroomId}`),
+    enabled: Boolean(activeOrg && activeClassroomId),
+  });
+
   if (!activeOrg) {
     return <EmptyState title="Selecciona una organización" description="El panel de instructor requiere contexto institucional." />;
   }
@@ -36,6 +43,41 @@ export function InstructorPage() {
           Solo ves las aulas y estudiantes explícitamente asignados a tu cuenta.
         </p>
       </div>
+
+      {analyticsQuery.data && (
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div className="surface-card p-4">
+            <p className="text-xs text-[var(--text-secondary)]">Matriculados</p>
+            <p className="text-2xl font-extrabold">{analyticsQuery.data.enrolled_students}</p>
+          </div>
+          <div className="surface-card p-4">
+            <p className="text-xs text-[var(--text-secondary)]">Lecciones completadas</p>
+            <p className="text-2xl font-extrabold">{analyticsQuery.data.completed_lesson_records}</p>
+          </div>
+          <div className="surface-card p-4">
+            <p className="text-xs text-[var(--text-secondary)]">Nota promedio</p>
+            <p className="text-2xl font-extrabold">{analyticsQuery.data.avg_lesson_score_pct}%</p>
+          </div>
+          <div className="surface-card p-4">
+            <p className="text-xs text-[var(--text-secondary)]">Precisión global</p>
+            <p className="text-2xl font-extrabold">{analyticsQuery.data.overall_accuracy_pct}%</p>
+          </div>
+        </div>
+      )}
+
+      {analyticsQuery.data && analyticsQuery.data.hardest_challenges.length > 0 && (
+        <div className="surface-card p-5">
+          <h2 className="text-base font-bold">Retos con mayor necesidad de refuerzo</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {analyticsQuery.data.hardest_challenges.map((ch) => (
+              <li key={ch.challenge_id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                <span className="truncate pr-3">{ch.prompt}</span>
+                <span className="shrink-0 font-semibold text-amber-800">{ch.error_rate_pct}% error</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {classroomsQuery.isLoading ? (
         <LoadingState label="Cargando aulas asignadas..." />

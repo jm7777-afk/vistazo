@@ -13,14 +13,19 @@ from app.modules.curriculum.models import (
     InstructorAssignment,
     Program,
 )
+from app.modules.gamification.models import Badge, StudentBadge, StudentGamificationProfile, XpTransaction
+from app.modules.media.models import ChallengeMediaAsset, MediaAsset, StudentLibraryItem
 from app.modules.progress.models import ChallengeAttempt, LessonProgress, StudentCompetency
 from app.modules.rbac.models import Permission, Role, RolePermission
+from app.modules.spaced_repetition.models import ReviewSession, ReviewSessionItem, SpacedRepetitionItem
 from app.modules.tenants.models import Organization, OrganizationMember
 
 __all__ = [
     "AuditLog",
+    "Badge",
     "Challenge",
     "ChallengeAttempt",
+    "ChallengeMediaAsset",
     "Classroom",
     "ClassroomMember",
     "Competency",
@@ -31,15 +36,23 @@ __all__ = [
     "Lesson",
     "LessonProgress",
     "LessonVersion",
+    "MediaAsset",
     "Module",
     "Organization",
     "OrganizationMember",
     "ParentalConsent",
     "Permission",
     "Program",
+    "ReviewSession",
+    "ReviewSessionItem",
     "Role",
     "RolePermission",
+    "SpacedRepetitionItem",
+    "StudentBadge",
     "StudentCompetency",
+    "StudentGamificationProfile",
+    "StudentLibraryItem",
     "User",
     "UserSession",
+    "XpTransaction",
 ]

@@ -100,6 +100,88 @@ export interface AttemptResult {
   lesson_score_pct: string;
   completed_challenges: number;
   total_challenges: number;
+  xp_awarded?: number;
+  next_review_at?: string | null;
+  unlocked_library_items?: number;
+}
+
+export interface DueReviewItem {
+  sr_item_id: string;
+  challenge_id: string;
+  challenge_type: ChallengeType;
+  prompt: string;
+  payload_json: Record<string, unknown>;
+  points: number;
+  estimated_seconds: number;
+  is_safety_critical: boolean;
+  item_state: string;
+  interval_days: number;
+  lapses: number;
+  next_review_at: string;
+}
+
+export interface ReviewSessionOut {
+  session_id: string;
+  session_mode: 'spaced_repetition' | 'flash_training' | 'energy_recovery';
+  items_planned: number;
+  items_completed: number;
+  energy_recovered: number;
+  items: DueReviewItem[];
+}
+
+export interface LibraryItem {
+  library_item_id: string;
+  asset_id: string;
+  title: string;
+  description: string | null;
+  tags: string[];
+  media_format: string;
+  is_favorite: boolean;
+  flash_reviews_count: number;
+  signed_url: string;
+  unlocked_at: string;
+}
+
+export interface BadgeOut {
+  code: string;
+  name: string;
+  description: string;
+  awarded_at: string;
+}
+
+export interface GamificationProfile {
+  total_xp: number;
+  current_streak_days: number;
+  longest_streak_days: number;
+  current_energy: number;
+  max_energy: number;
+  badges: BadgeOut[];
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  display_name: string;
+  xp_in_classroom: number;
+  is_me: boolean;
+}
+
+export interface HardChallengeStat {
+  challenge_id: string;
+  prompt: string;
+  challenge_type: string;
+  total_attempts: number;
+  error_rate_pct: number;
+}
+
+export interface ClassroomAnalytics {
+  classroom_id: string;
+  classroom_name: string;
+  enrolled_students: number;
+  completed_lesson_records: number;
+  avg_lesson_score_pct: number;
+  total_challenge_attempts: number;
+  overall_accuracy_pct: number;
+  hardest_challenges: HardChallengeStat[];
 }
 
 export interface ClassroomOut {
