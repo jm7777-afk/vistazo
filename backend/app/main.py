@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.observability import ObservabilityMiddleware, metrics_registry
+from app.db.session import get_db
 from app.modules.certificates.router import public_verify_router
 
 
@@ -24,12 +29,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    app.add_middleware(ObservabilityMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Organization-Id"],
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Organization-Id", "X-Request-ID"],
     )
 
     register_exception_handlers(app)
@@ -39,6 +45,15 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["health"])
     def healthcheck() -> dict[str, str]:
         return {"status": "ok", "service": "vistazo-lms"}
+
+    @app.get("/health/ready", tags=["health"])
+    def readiness_check(db: Session = Depends(get_db)) -> JSONResponse:
+        db.execute(text("SELECT 1"))
+        return JSONResponse({"status": "ready", "database": "ok"})
+
+    @app.get("/metrics", tags=["observability"], response_class=PlainTextResponse)
+    def prometheus_metrics() -> PlainTextResponse:
+        return PlainTextResponse(metrics_registry.render_prometheus(), media_type="text/plain; version=0.0.4")
 
     return app
 

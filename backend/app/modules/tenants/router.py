@@ -11,10 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import TenantContext, require_permission, require_super_admin
 from app.core.exceptions import ConflictError, NotFoundError
+from app.core.security import hash_password
 from app.db.session import get_db
 from app.modules.audit.models import AuditLog
 from app.modules.audit.service import record_audit_log
 from app.modules.auth.models import User
+from app.modules.curriculum.models import CurriculumVersion, Program
 from app.modules.rbac.models import Role
 from app.modules.tenants.models import Organization, OrganizationMember
 from app.modules.tenants.schemas import (
@@ -22,6 +24,8 @@ from app.modules.tenants.schemas import (
     AuditLogOut,
     OrganizationCreate,
     OrganizationMemberOut,
+    OrganizationOnboardOut,
+    OrganizationOnboardRequest,
     OrganizationOut,
 )
 
@@ -89,6 +93,96 @@ def create_organization(
         default_ui_profile=org.default_ui_profile,
         is_active=org.is_active,
         created_at=org.created_at,
+    )
+
+
+@router.post("/admin/organizations/onboard", response_model=OrganizationOnboardOut, status_code=status.HTTP_201_CREATED)
+def onboard_organization(
+    payload: OrganizationOnboardRequest,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> OrganizationOnboardOut:
+    """Onboarding atómico de nueva institución: organización, coordinador, programa y pensum v1."""
+    existing = db.scalar(
+        select(Organization).where(Organization.slug == payload.slug.lower(), Organization.deleted_at.is_(None))
+    )
+    if existing:
+        raise ConflictError("El slug organizacional ya existe")
+
+    coord_role = db.scalar(
+        select(Role).where(Role.code == "coordinator", Role.organization_id.is_(None), Role.deleted_at.is_(None))
+    )
+    if not coord_role:
+        raise NotFoundError("Rol coordinador del sistema no encontrado")
+
+    org = Organization(
+        name=payload.name.strip(),
+        slug=payload.slug.lower(),
+        sector_type=payload.sector_type,
+        default_ui_profile=payload.default_ui_profile,
+    )
+    db.add(org)
+    db.flush()
+
+    coord_email = payload.coordinator_email.strip().lower()
+    coord_user = db.scalar(select(User).where(User.email == coord_email, User.deleted_at.is_(None)))
+    if not coord_user:
+        coord_user = User(
+            email=coord_email,
+            password_hash=hash_password(payload.coordinator_password),
+            full_name=payload.coordinator_name.strip(),
+            preferred_ui_profile=payload.default_ui_profile,
+        )
+        db.add(coord_user)
+        db.flush()
+
+    db.add(OrganizationMember(organization_id=org.id, user_id=coord_user.id, role_id=coord_role.id))
+
+    program = Program(
+        organization_id=org.id,
+        code=payload.initial_program_code.strip(),
+        title=payload.initial_program_title.strip(),
+        education_level=payload.education_level,
+    )
+    db.add(program)
+    db.flush()
+
+    cv = CurriculumVersion(
+        organization_id=org.id,
+        program_id=program.id,
+        version_number=1,
+        title=f"{program.title} — Pensum v1",
+        created_by=coord_user.id,
+        status="draft",
+    )
+    db.add(cv)
+    db.flush()
+
+    record_audit_log(
+        db,
+        action="organization.onboarded",
+        resource_type="organization",
+        resource_id=org.id,
+        organization_id=org.id,
+        actor_user_id=admin.id,
+        details={"coordinator_email": coord_email, "program_code": program.code},
+    )
+    db.commit()
+    db.refresh(org)
+
+    return OrganizationOnboardOut(
+        organization=OrganizationOut(
+            id=org.id,
+            name=org.name,
+            slug=org.slug,
+            sector_type=org.sector_type,
+            default_ui_profile=org.default_ui_profile,
+            is_active=org.is_active,
+            created_at=org.created_at,
+        ),
+        coordinator_user_id=coord_user.id,
+        program_id=program.id,
+        curriculum_version_id=cv.id,
     )
 
 

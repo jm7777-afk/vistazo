@@ -264,3 +264,29 @@ def revoke_session(db: Session, raw_refresh_token: str | None) -> None:
     if session_row and session_row.revoked_at is None:
         session_row.revoked_at = datetime.now(timezone.utc)
         db.commit()
+
+
+def anonymize_user_account(db: Session, user: User, ip_address: str | None) -> None:
+    """Anonimiza PII del usuario conservando integridad referencial histórica y auditoría."""
+    now = datetime.now(timezone.utc)
+    user.email = f"anonymized-{user.id}@redacted.invalid"
+    user.full_name = "Usuario Anonimizado"
+    user.birth_date = None
+    user.is_active = False
+    user.deleted_at = now
+    user.deleted_by = user.id
+
+    db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+    record_audit_log(
+        db,
+        action="auth.account_anonymized",
+        resource_type="user",
+        resource_id=user.id,
+        actor_user_id=user.id,
+        ip_address=ip_address,
+    )
+    db.commit()

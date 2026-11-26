@@ -11,12 +11,97 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import TenantContext, require_permission
 from app.db.session import get_db
+from app.modules.ai_assistant.models import AIGenerationJob
+from app.modules.certificates.models import Certificate
 from app.modules.challenges.models import Challenge
-from app.modules.curriculum.models import ClassroomMember
+from app.modules.curriculum.models import Classroom, ClassroomMember
 from app.modules.curriculum.router import _ensure_classroom_access
 from app.modules.progress.models import ChallengeAttempt, LessonProgress
 
 router = APIRouter(prefix="/orgs/{org_id}/analytics", tags=["analytics"])
+
+
+class CohortComparisonItem(BaseModel):
+    classroom_id: uuid.UUID
+    classroom_code: str
+    classroom_name: str
+    enrolled_students: int
+    completed_lessons: int
+    avg_score_pct: float
+
+
+class OrgAnalyticsOverviewOut(BaseModel):
+    organization_id: uuid.UUID
+    total_classrooms: int
+    total_enrolled_students: int
+    issued_certificates: int
+    revoked_certificates: int
+    ai_jobs_count: int
+    cohorts: list[CohortComparisonItem]
+
+
+@router.get("/overview", response_model=OrgAnalyticsOverviewOut)
+def get_org_analytics_overview(
+    tenant: TenantContext = Depends(require_permission("org:manage")),
+    db: Session = Depends(get_db),
+) -> OrgAnalyticsOverviewOut:
+    """Analíticas comparativas multi-cohorte aisladas a la organización."""
+    classrooms = db.scalars(
+        select(Classroom)
+        .where(Classroom.organization_id == tenant.organization.id, Classroom.deleted_at.is_(None))
+        .order_by(Classroom.created_at.desc())
+    ).all()
+
+    cohorts: list[CohortComparisonItem] = []
+    total_enrolled = 0
+    for c in classrooms:
+        enrolled = db.scalar(
+            select(func.count(ClassroomMember.id)).where(
+                ClassroomMember.classroom_id == c.id,
+                ClassroomMember.deleted_at.is_(None),
+                ClassroomMember.enrollment_status == "enrolled",
+            )
+        ) or 0
+        lp_rows = db.scalars(select(LessonProgress).where(LessonProgress.classroom_id == c.id)).all()
+        completed = sum(1 for l in lp_rows if l.status == "completed")
+        avg_score = round(sum(float(l.best_score_pct) for l in lp_rows) / len(lp_rows), 2) if lp_rows else 0.0
+        total_enrolled += int(enrolled)
+        cohorts.append(
+            CohortComparisonItem(
+                classroom_id=c.id,
+                classroom_code=c.code,
+                classroom_name=c.name,
+                enrolled_students=int(enrolled),
+                completed_lessons=completed,
+                avg_score_pct=avg_score,
+            )
+        )
+
+    issued_certs = db.scalar(
+        select(func.count(Certificate.id)).where(
+            Certificate.organization_id == tenant.organization.id,
+            Certificate.status == "issued",
+        )
+    ) or 0
+    revoked_certs = db.scalar(
+        select(func.count(Certificate.id)).where(
+            Certificate.organization_id == tenant.organization.id,
+            Certificate.status == "revoked",
+        )
+    ) or 0
+    ai_jobs = db.scalar(
+        select(func.count(AIGenerationJob.id)).where(AIGenerationJob.organization_id == tenant.organization.id)
+    ) or 0
+
+    return OrgAnalyticsOverviewOut(
+        organization_id=tenant.organization.id,
+        total_classrooms=len(classrooms),
+        total_enrolled_students=total_enrolled,
+        issued_certificates=int(issued_certs),
+        revoked_certificates=int(revoked_certs),
+        ai_jobs_count=int(ai_jobs),
+        cohorts=cohorts,
+    )
 
 
 class HardChallengeStat(BaseModel):

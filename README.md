@@ -23,6 +23,12 @@ Plataforma LMS modular con aislamiento multi-tenant estricto, modo institucional
 ### Fase 4 (Certificación Verificable)
 - Emisión institucional por pensum aprobado (`POST /api/v1/orgs/{org_id}/certificates/issue`), hash SHA-256 único, firma HMAC autorizada, generación asíncrona de PDF con código QR (`reportlab`), descarga protegida (`/api/v1/certificates/{id}/pdf`), revocación auditada (`/revoke`) y verificación pública anti-enumeración sin PII sensible (`GET /verificar-certificado/{hash}`).
 
+### Fase 5 (Escalabilidad, Observabilidad y CI/CD)
+- Observabilidad (`X-Request-ID`, `X-Process-Time-Ms`, `/health/ready`, `/metrics` formato Prometheus).
+- Despachador asíncrono (`app/workers/tasks.py`) compatible con Redis o `BackgroundTasks` local y servicio `redis` en `docker-compose.yml`.
+- Analíticas comparativas multi-cohorte (`/api/v1/orgs/{org_id}/analytics/overview`), onboarding atómico de nuevas instituciones (`/api/v1/admin/organizations/onboard`) y anonimización GDPR (`/api/v1/auth/me/anonymize`).
+- Pipeline CI/CD en `.github/workflows/ci.yml` validando PostgreSQL 16, SQL puro, Alembic, `pytest` y build frontend.
+
 ## Inicio rápido con Docker
 
 ```bash

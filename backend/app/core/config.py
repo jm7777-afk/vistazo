@@ -63,6 +63,7 @@ class Settings:
     ai_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("AI_TIMEOUT_SECONDS", "20")))
     ai_max_tokens: int = field(default_factory=lambda: int(os.getenv("AI_MAX_TOKENS", "2500")))
     ai_daily_org_job_limit: int = field(default_factory=lambda: int(os.getenv("AI_DAILY_ORG_JOB_LIMIT", "50")))
+    redis_url: str | None = field(default_factory=lambda: os.getenv("REDIS_URL") or None)
 
 
 @lru_cache(maxsize=1)

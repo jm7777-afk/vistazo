@@ -258,6 +258,25 @@ export interface PublicCertificateVerification {
   revocation_reason: string | null;
 }
 
+export interface CohortComparisonItem {
+  classroom_id: string;
+  classroom_code: string;
+  classroom_name: string;
+  enrolled_students: number;
+  completed_lessons: number;
+  avg_score_pct: number;
+}
+
+export interface OrgAnalyticsOverview {
+  organization_id: string;
+  total_classrooms: number;
+  total_enrolled_students: number;
+  issued_certificates: number;
+  revoked_certificates: number;
+  ai_jobs_count: number;
+  cohorts: CohortComparisonItem[];
+}
+
 export interface ClassroomOut {
   id: string;
   organization_id: string;

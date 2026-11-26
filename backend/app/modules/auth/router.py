@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.modules.auth.models import User
 from app.modules.auth.schemas import LoginRequest, RegisterRequest, TokenResponse, UserSummary
 from app.modules.auth.service import (
+    anonymize_user_account,
     authenticate_user,
     build_user_summary,
     register_user,
@@ -121,3 +122,16 @@ def logout(
 @router.get("/me", response_model=UserSummary)
 def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> UserSummary:
     return build_user_summary(db, current_user)
+
+
+@router.post("/me/anonymize", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def anonymize_me(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    anonymize_user_account(db, current_user, ip_address=request.client.host if request.client else None)
+    res = Response(status_code=status.HTTP_204_NO_CONTENT)
+    res.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")
+    res.delete_cookie(CSRF_COOKIE_NAME, path="/")
+    return res

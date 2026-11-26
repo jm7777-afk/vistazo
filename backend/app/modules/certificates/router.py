@@ -24,11 +24,11 @@ from app.modules.certificates.service import (
     check_verify_rate_limit,
     get_certificates_storage_root,
     issue_certificate,
-    render_certificate_pdf_job,
     revoke_certificate,
     verify_certificate_by_hash,
 )
 from app.modules.tenants.models import OrganizationMember
+from app.workers.tasks import dispatch_certificate_pdf
 
 router = APIRouter(tags=["certificates"])
 public_verify_router = APIRouter(tags=["certificates_public"])
@@ -68,7 +68,11 @@ def issue_org_certificate(
         classroom_id=payload.classroom_id,
         signer_title=payload.signer_title,
     )
-    background_tasks.add_task(render_certificate_pdf_job, cert.id, session_factory)
+    dispatch_certificate_pdf(
+        certificate_id=cert.id,
+        background_tasks=background_tasks,
+        session_factory=session_factory,
+    )
     return _to_out(cert)
 
 

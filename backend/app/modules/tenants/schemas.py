@@ -64,3 +64,25 @@ class AuditLogOut(BaseModel):
     outcome: str
     details_json: dict
     created_at: datetime
+
+
+class OrganizationOnboardRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    slug: str = Field(min_length=2, max_length=100, pattern=r"^[a-z0-9-]+$")
+    sector_type: SectorType
+    default_ui_profile: UIProfileType = "pro"
+    coordinator_email: EmailStr
+    coordinator_name: str = Field(min_length=2, max_length=160)
+    coordinator_password: str = Field(default="TempCoord2026!", min_length=8, max_length=128)
+    initial_program_code: str = Field(min_length=2, max_length=60)
+    initial_program_title: str = Field(min_length=2, max_length=200)
+    education_level: Literal[
+        "primary", "secondary", "high_school", "university", "technical", "specialized", "rescue"
+    ] = "specialized"
+
+
+class OrganizationOnboardOut(BaseModel):
+    organization: OrganizationOut
+    coordinator_user_id: uuid.UUID
+    program_id: uuid.UUID
+    curriculum_version_id: uuid.UUID

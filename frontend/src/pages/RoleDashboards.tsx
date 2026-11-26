@@ -13,6 +13,7 @@ import type {
   CourseDetail,
   CourseSummary,
   GenerateLessonDraftResponse,
+  OrgAnalyticsOverview,
   UIProfile,
 } from '../types/api';
 
@@ -349,8 +350,58 @@ export function CoordinatorPage() {
         </div>
       )}
 
+      <CoordinatorOverviewPanel orgId={activeOrg.organization_id} />
       <CoordinatorCertificatesPanel orgId={activeOrg.organization_id} programId={programsQuery.data?.[0]?.id} />
     </div>
+  );
+}
+
+function CoordinatorOverviewPanel({ orgId }: { orgId: string }) {
+  const overviewQuery = useQuery({
+    queryKey: ['org-analytics-overview', orgId],
+    queryFn: () => apiRequest<OrgAnalyticsOverview>(`/orgs/${orgId}/analytics/overview`),
+  });
+
+  if (overviewQuery.isLoading) return <LoadingState label="Cargando comparativa multi-cohorte..." />;
+  if (!overviewQuery.data) return null;
+  const ov = overviewQuery.data;
+
+  return (
+    <section className="surface-card p-5 space-y-4">
+      <h2 className="text-base font-bold">Analíticas Multi-Cohorte</h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs text-[var(--text-secondary)]">Aulas activas</p>
+          <p className="text-xl font-extrabold">{ov.total_classrooms}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs text-[var(--text-secondary)]">Estudiantes</p>
+          <p className="text-xl font-extrabold">{ov.total_enrolled_students}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs text-[var(--text-secondary)]">Certificados emitidos</p>
+          <p className="text-xl font-extrabold">{ov.issued_certificates}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs text-[var(--text-secondary)]">Jobs IA</p>
+          <p className="text-xl font-extrabold">{ov.ai_jobs_count}</p>
+        </div>
+      </div>
+      {ov.cohorts.length > 0 && (
+        <ul className="space-y-2 text-xs">
+          {ov.cohorts.map((c) => (
+            <li key={c.classroom_id} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2">
+              <span className="font-semibold">
+                {c.classroom_name} ({c.classroom_code})
+              </span>
+              <span>
+                {c.enrolled_students} alumnos • {c.completed_lessons} lecciones • {c.avg_score_pct}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -461,6 +512,12 @@ export function SuperAdminPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [sector, setSector] = useState('rescue_brigade');
+  const [uiProfile, setUiProfile] = useState<UIProfile>('pro');
+  const [coordEmail, setCoordEmail] = useState('');
+  const [coordName, setCoordName] = useState('');
+  const [progCode, setProgCode] = useState('');
+  const [progTitle, setProgTitle] = useState('');
 
   const orgsQuery = useQuery({
     queryKey: ['admin-orgs'],
@@ -470,22 +527,30 @@ export function SuperAdminPage() {
       ),
   });
 
-  const createOrg = useMutation({
+  const onboardOrg = useMutation({
     mutationFn: (e: React.FormEvent) => {
       e.preventDefault();
-      return apiRequest('/admin/organizations', {
+      return apiRequest('/admin/organizations/onboard', {
         method: 'POST',
         body: JSON.stringify({
           name,
           slug,
-          sector_type: 'rescue_brigade',
-          default_ui_profile: 'pro',
+          sector_type: sector,
+          default_ui_profile: uiProfile,
+          coordinator_email: coordEmail,
+          coordinator_name: coordName,
+          initial_program_code: progCode,
+          initial_program_title: progTitle,
         }),
       });
     },
     onSuccess: () => {
       setName('');
       setSlug('');
+      setCoordEmail('');
+      setCoordName('');
+      setProgCode('');
+      setProgTitle('');
       void queryClient.invalidateQueries({ queryKey: ['admin-orgs'] });
     },
   });
@@ -494,12 +559,13 @@ export function SuperAdminPage() {
     <div className="space-y-6">
       <div className="surface-card p-6">
         <h1 className="text-xl font-bold">Panel SuperAdministrador</h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">Alta global de organizaciones multi-tenant.</p>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">Onboarding atómico multi-institucional y proveedores IA.</p>
       </div>
 
-      {createOrg.error && <ErrorBanner message={(createOrg.error as Error).message} />}
+      {onboardOrg.error && <ErrorBanner message={(onboardOrg.error as Error).message} />}
+      {onboardOrg.isSuccess && <SuccessBanner message="Institución y coordinador creados correctamente." />}
 
-      <form onSubmit={createOrg.mutate} className="surface-card grid gap-3 p-5 sm:grid-cols-3">
+      <form onSubmit={onboardOrg.mutate} className="surface-card grid gap-3 p-5 sm:grid-cols-2">
         <input
           required
           placeholder="Nombre institución"
@@ -514,8 +580,59 @@ export function SuperAdminPage() {
           onChange={(e) => setSlug(e.target.value)}
           className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
         />
-        <button type="submit" className="btn-primary px-4 py-2 text-sm font-semibold">
-          Crear organización
+        <select
+          value={sector}
+          onChange={(e) => setSector(e.target.value)}
+          className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm"
+        >
+          <option value="rescue_brigade">Brigada de Rescate</option>
+          <option value="primary_school">Educación Primaria</option>
+          <option value="secondary_school">Educación Secundaria</option>
+          <option value="high_school">Bachillerato</option>
+          <option value="university">Universidad</option>
+          <option value="technical_academy">Academia Técnica</option>
+          <option value="specialized_training">Formación Especializada</option>
+        </select>
+        <select
+          value={uiProfile}
+          onChange={(e) => setUiProfile(e.target.value as UIProfile)}
+          className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm"
+        >
+          <option value="pro">Perfil Pro / Rescate</option>
+          <option value="youth">Perfil Juvenil</option>
+          <option value="kids">Perfil Infantil</option>
+        </select>
+        <input
+          required
+          placeholder="Nombre del coordinador"
+          value={coordName}
+          onChange={(e) => setCoordName(e.target.value)}
+          className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+        />
+        <input
+          required
+          type="email"
+          placeholder="correo@coordinador.org"
+          value={coordEmail}
+          onChange={(e) => setCoordEmail(e.target.value)}
+          className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+        />
+        <input
+          required
+          placeholder="Código programa inicial"
+          value={progCode}
+          onChange={(e) => setProgCode(e.target.value)}
+          className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+        />
+        <input
+          required
+          placeholder="Título programa inicial"
+          value={progTitle}
+          onChange={(e) => setProgTitle(e.target.value)}
+          className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+        />
+        <button type="submit" disabled={onboardOrg.isPending} className="btn-primary sm:col-span-2 px-4 py-2 text-sm font-semibold">
+          Ejecutar onboarding institucional
         </button>
       </form>
 
@@ -596,7 +713,8 @@ function AdminAIProvidersPanel() {
 }
 
 export function ProfilePage() {
-  const { user, uiProfile, setUiProfile } = useAppState();
+  const { user, uiProfile, setUiProfile, logout } = useAppState();
+  const [confirmAnon, setConfirmAnon] = useState(false);
   if (!user) return null;
 
   const profiles: { id: UIProfile; label: string; desc: string }[] = [
@@ -604,6 +722,11 @@ export function ProfilePage() {
     { id: 'youth', label: 'Juvenil y Secundaria', desc: 'Contraste vibrante para micro-retos dinámicos.' },
     { id: 'pro', label: 'Profesional / Universitario / Rescate', desc: 'Sobrio, técnico y de máxima legibilidad operativa.' },
   ];
+
+  const handleAnonymize = async () => {
+    await apiRequest<void>('/auth/me/anonymize', { method: 'POST' }, false);
+    await logout();
+  };
 
   return (
     <div className="mx-auto max-w-xl space-y-5">
@@ -628,6 +751,39 @@ export function ProfilePage() {
             <p className="text-xs text-[var(--text-secondary)]">{p.desc}</p>
           </button>
         ))}
+      </div>
+
+      <div className="surface-card border-red-200 p-6 space-y-3">
+        <h2 className="font-bold text-sm text-red-900">Privacidad y Eliminación de Datos</h2>
+        <p className="text-xs text-[var(--text-secondary)]">
+          Anonimiza tus datos personales identificables conservando únicamente registros históricos anonimizados.
+        </p>
+        {!confirmAnon ? (
+          <button
+            type="button"
+            onClick={() => setConfirmAnon(true)}
+            className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+          >
+            Solicitar anonimización de cuenta
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void handleAnonymize()}
+              className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              Confirmar anonimización irreversible
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmAnon(false)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
