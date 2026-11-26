@@ -15,6 +15,11 @@ Plataforma LMS modular con aislamiento multi-tenant estricto, modo institucional
 - **Biblioteca Visual y Multimedia** (`media_assets`, `student_library_items`): validación MIME/tamaño, transcodificación FFmpeg (GIF→WebP/miniatura), URLs firmadas HMAC-SHA256 con expiración corta, desbloqueo automático por lección y **Modo Entrenamiento Flash**.
 - **Gamificación y Analíticas**: XP, rachas diarias, energía configurable con **Biblioteca de Recuperación de Energía** (sin penalizar retos de rescate), insignias, ranking por aula y panel analítico de instructor.
 
+### Fase 3 (IA Pedagógica)
+- **Proveedores intercambiables** (`GeminiProvider`, `GroqProvider`, `DeterministicFallbackProvider`) con conmutación automática ante fallos o ausencia de API key y administración por SuperAdmin (`/api/v1/admin/ai/providers`).
+- **Generador de Lecciones** (`/api/v1/orgs/{org_id}/ai/generate-lesson-draft`): crea borradores de 5–8 retos validados por Pydantic (`status='draft'`, `ai_generated=True`) sin enviar PII.
+- **Tutor Socrático** (`/api/v1/challenges/{challenge_id}/socratic-hint`): habilitado tras 2 intentos fallidos, con guardrails anti-*prompt-injection*, sanitización de salidas y recordatorio obligatorio al instructor en protocolos críticos.
+
 ## Inicio rápido con Docker
 
 ```bash

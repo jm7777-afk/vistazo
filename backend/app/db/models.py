@@ -1,5 +1,6 @@
 """Registro central de todos los modelos ORM para descubrimiento de Alembic."""
 
+from app.modules.ai_assistant.models import AIGenerationJob, AIProviderConfig
 from app.modules.audit.models import AuditLog
 from app.modules.auth.models import ParentalConsent, User, UserSession
 from app.modules.challenges.models import Challenge
@@ -21,6 +22,8 @@ from app.modules.spaced_repetition.models import ReviewSession, ReviewSessionIte
 from app.modules.tenants.models import Organization, OrganizationMember
 
 __all__ = [
+    "AIGenerationJob",
+    "AIProviderConfig",
     "AuditLog",
     "Badge",
     "Challenge",

@@ -55,6 +55,14 @@ class Settings:
     cors_origins: list[str] = field(
         default_factory=lambda: _parse_origins(os.getenv("CORS_ORIGINS"))
     )
+    ai_provider: str = field(default_factory=lambda: os.getenv("AI_PROVIDER", "fallback"))
+    gemini_api_key: str | None = field(default_factory=lambda: os.getenv("GEMINI_API_KEY") or None)
+    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
+    groq_api_key: str | None = field(default_factory=lambda: os.getenv("GROQ_API_KEY") or None)
+    groq_model: str = field(default_factory=lambda: os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"))
+    ai_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("AI_TIMEOUT_SECONDS", "20")))
+    ai_max_tokens: int = field(default_factory=lambda: int(os.getenv("AI_MAX_TOKENS", "2500")))
+    ai_daily_org_job_limit: int = field(default_factory=lambda: int(os.getenv("AI_DAILY_ORG_JOB_LIMIT", "50")))
 
 
 @lru_cache(maxsize=1)

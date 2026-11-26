@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Lightbulb, XCircle } from 'lucide-react';
 import { ChallengeRenderer } from '../components/challenges/ChallengeRenderer';
 import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
-import type { AttemptResult, ChallengePublic } from '../types/api';
+import type { AttemptResult, ChallengePublic, SocraticHintResponse } from '../types/api';
 
 export function LessonPlayerPage() {
   const { lessonVersionId } = useParams<{ lessonVersionId: string }>();
@@ -16,6 +16,8 @@ export function LessonPlayerPage() {
 
   const [index, setIndex] = useState(0);
   const [lastResult, setLastResult] = useState<AttemptResult | null>(null);
+  const [failedCounts, setFailedCounts] = useState<Record<string, number>>({});
+  const [socraticHint, setSocraticHint] = useState<SocraticHintResponse | null>(null);
   const [startedAt, setStartedAt] = useState<number>(Date.now());
 
   const { data: challenges, isLoading, error, refetch } = useQuery({
@@ -37,7 +39,22 @@ export function LessonPlayerPage() {
       }),
     onSuccess: (res) => {
       setLastResult(res);
+      if (!res.is_correct) {
+        setFailedCounts((prev) => ({
+          ...prev,
+          [res.challenge_id]: (prev[res.challenge_id] ?? 0) + 1,
+        }));
+      }
     },
+  });
+
+  const hintMutation = useMutation({
+    mutationFn: (challengeId: string) =>
+      apiRequest<SocraticHintResponse>(`/challenges/${challengeId}/socratic-hint`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+    onSuccess: (res) => setSocraticHint(res),
   });
 
   if (isLoading) return <LoadingState label="Preparando retos de la lección..." />;
@@ -49,6 +66,7 @@ export function LessonPlayerPage() {
   const current = challenges[index];
   const isLast = index === challenges.length - 1;
   const pct = Math.round(((index + (lastResult ? 1 : 0)) / challenges.length) * 100);
+  const currentFailures = failedCounts[current.id] ?? 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -88,6 +106,30 @@ export function LessonPlayerPage() {
           </div>
         )}
 
+        {user && currentFailures >= 2 && (
+          <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
+                <Lightbulb className="h-4 w-4 text-indigo-600" /> Tutor Socrático disponible
+              </span>
+              <button
+                type="button"
+                disabled={hintMutation.isPending}
+                onClick={() => hintMutation.mutate(current.id)}
+                className="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-800"
+              >
+                {hintMutation.isPending ? 'Pensando pista...' : 'Solicitar pista guía'}
+              </button>
+            </div>
+            {hintMutation.error && (
+              <p className="mt-2 text-xs text-red-700">{(hintMutation.error as Error).message}</p>
+            )}
+            {socraticHint && (
+              <p className="mt-2 text-sm text-indigo-950">{socraticHint.hint}</p>
+            )}
+          </div>
+        )}
+
         {lastResult && (
           <div
             className={`mt-5 rounded-xl border p-4 ${
@@ -118,6 +160,7 @@ export function LessonPlayerPage() {
                 onClick={() => {
                   setIndex((i) => i + 1);
                   setLastResult(null);
+                  setSocraticHint(null);
                   setStartedAt(Date.now());
                 }}
                 className="btn-primary mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold"

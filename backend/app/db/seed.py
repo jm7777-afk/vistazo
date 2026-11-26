@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
+from app.modules.ai_assistant.models import AIProviderConfig
 from app.modules.auth.models import User
 from app.modules.challenges.models import Challenge
 from app.modules.courses.models import Course, Lesson, LessonVersion, Module
@@ -512,6 +513,31 @@ def seed_database(db: Session) -> None:
                 media_asset_id=media_start.id,
                 role="primary",
                 order_index=0,
+            ),
+        ]
+    )
+    db.add_all(
+        [
+            AIProviderConfig(
+                provider="fallback",
+                model_name="deterministic-pedagogical-v1",
+                is_active=True,
+                max_tokens=2500,
+                daily_org_job_limit=50,
+            ),
+            AIProviderConfig(
+                provider="gemini",
+                model_name="gemini-2.0-flash",
+                is_active=False,
+                max_tokens=2500,
+                daily_org_job_limit=50,
+            ),
+            AIProviderConfig(
+                provider="groq",
+                model_name="llama-3.3-70b-versatile",
+                is_active=False,
+                max_tokens=2500,
+                daily_org_job_limit=50,
             ),
         ]
     )

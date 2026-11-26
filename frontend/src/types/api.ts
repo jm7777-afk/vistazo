@@ -184,6 +184,49 @@ export interface ClassroomAnalytics {
   hardest_challenges: HardChallengeStat[];
 }
 
+export interface SocraticHintResponse {
+  job_id: string;
+  hint: string;
+  provider: string;
+  model_name: string;
+  used_fallback: boolean;
+  failed_attempts: number;
+  safety_reminder: boolean;
+}
+
+export interface GenerateLessonDraftResponse {
+  job_id: string;
+  provider: string;
+  model_name: string;
+  status: string;
+  used_fallback: boolean;
+  lesson_summary: string;
+  challenges_created: number;
+  challenge_ids: string[];
+}
+
+export interface AIJobOut {
+  id: string;
+  job_type: string;
+  provider: string;
+  model_name: string;
+  status: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  latency_ms: number | null;
+  created_at: string;
+}
+
+export interface AIProviderConfigOut {
+  id: string;
+  provider: 'gemini' | 'groq' | 'fallback';
+  model_name: string;
+  is_active: boolean;
+  max_tokens: number;
+  daily_org_job_limit: number;
+  has_api_key_configured: boolean;
+}
+
 export interface ClassroomOut {
   id: string;
   organization_id: string;
