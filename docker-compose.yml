@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vistazo
+      POSTGRES_PASSWORD: vistazo_dev_password
+      POSTGRES_DB: vistazo_lms
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/0001_initial_schema.sql:/docker-entrypoint-initdb.d/0001_initial_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vistazo -d vistazo_lms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: vistazo_minio
+      MINIO_ROOT_PASSWORD: vistazo_minio_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  api:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env.example
+    environment:
+      DATABASE_URL: postgresql+psycopg://vistazo:vistazo_dev_password@postgres:5432/vistazo_lms
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && python -m app.db.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  miniodata:

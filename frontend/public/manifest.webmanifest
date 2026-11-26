@@ -1,0 +1,10 @@
+{
+  "name": "Vistazo LMS",
+  "short_name": "Vistazo",
+  "description": "Plataforma educativa gamificada, visual y multiinstitucional",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f4c5c",
+  "icons": []
+}
