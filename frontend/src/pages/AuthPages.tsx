@@ -35,6 +35,11 @@ export function LoginPage() {
   return (
     <div className="mx-auto max-w-md space-y-5">
       <div className="surface-card p-6">
+        <img
+          src="/brand/vistazo-logo.png"
+          alt="Vistazo — Aprende de un vistazo"
+          className="mx-auto mb-4 h-12 w-auto object-contain"
+        />
         <h1 className="text-xl font-bold">Iniciar sesión</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Accede a tus aulas institucionales o continúa tu estudio libre.
@@ -131,6 +136,11 @@ export function RegisterPage() {
   return (
     <div className="mx-auto max-w-md">
       <div className="surface-card p-6">
+        <img
+          src="/brand/vistazo-logo.png"
+          alt="Vistazo — Aprende de un vistazo"
+          className="mx-auto mb-4 h-12 w-auto object-contain"
+        />
         <h1 className="text-xl font-bold">Crear cuenta</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">Registro gratuito para estudio libre o instituciones.</p>
 

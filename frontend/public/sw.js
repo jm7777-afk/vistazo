@@ -1,5 +1,12 @@
-const CACHE_NAME = 'vistazo-shell-v1';
-const SHELL_URLS = ['/', '/manifest.webmanifest'];
+const CACHE_NAME = 'vistazo-shell-v2';
+const SHELL_URLS = [
+  '/',
+  '/manifest.webmanifest',
+  '/brand/vistazo-icon.png',
+  '/brand/vistazo-logo.png',
+  '/icons/icon-192.png',
+  '/icons/favicon-64.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

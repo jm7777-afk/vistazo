@@ -34,11 +34,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/catalog" className="flex items-center gap-2 font-bold tracking-tight text-[var(--brand-primary)]">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-primary)] text-white text-sm">
-              V
-            </span>
-            <span>Vistazo LMS</span>
-            <span className="hidden rounded-full bg-[var(--bg-accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--brand-primary)] sm:inline">
+            <img
+              src="/brand/vistazo-icon.png"
+              alt="Vistazo"
+              className="h-8 w-auto object-contain sm:hidden"
+            />
+            <img
+              src="/brand/vistazo-logo.png"
+              alt="Vistazo — Aprende de un vistazo"
+              className="hidden h-9 w-auto object-contain sm:block"
+            />
+            <span className="hidden rounded-full bg-[var(--bg-accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--brand-primary)] lg:inline">
               Perfil: {uiProfile}
             </span>
           </Link>

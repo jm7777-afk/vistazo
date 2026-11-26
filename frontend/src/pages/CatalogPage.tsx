@@ -17,13 +17,22 @@ export function CatalogPage() {
   return (
     <div className="space-y-6">
       <section className="surface-card bg-[var(--bg-accent-soft)] p-6">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--brand-primary)]">
-          <Sparkles className="h-4 w-4" /> Modo Estudio Libre
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--brand-primary)]">
+              <Sparkles className="h-4 w-4" /> Modo Estudio Libre
+            </div>
+            <h1 className="mt-2 text-2xl font-bold">Explora cursos públicos sin matrícula obligatoria</h1>
+            <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
+              Practica con lecciones interactivas de microlearning y guarda tu avance al iniciar sesión.
+            </p>
+          </div>
+          <img
+            src="/brand/vistazo-icon.png"
+            alt="Emblema Vistazo"
+            className="hidden h-16 w-auto shrink-0 object-contain sm:block"
+          />
         </div>
-        <h1 className="mt-2 text-2xl font-bold">Explora cursos públicos sin matrícula obligatoria</h1>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
-          Practica con lecciones interactivas de microlearning y guarda tu avance al iniciar sesión.
-        </p>
       </section>
 
       {!data || data.length === 0 ? (

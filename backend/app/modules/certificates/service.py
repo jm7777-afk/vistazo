@@ -127,6 +127,10 @@ def generate_certificate_pdf_bytes(
     c.setLineWidth(4)
     c.rect(28, 28, page_w - 56, page_h - 56)
 
+    logo_path = Path(__file__).resolve().parents[2] / "assets" / "vistazo-icon.png"
+    if logo_path.exists():
+        c.drawImage(str(logo_path), 58, page_h - 115, width=74, height=48, mask="auto", preserveAspectRatio=True)
+
     c.setFont("Helvetica-Bold", 24)
     c.drawCentredString(page_w / 2, page_h - 90, organization_name.upper())
 
