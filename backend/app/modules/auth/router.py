@@ -29,12 +29,13 @@ CSRF_COOKIE_NAME = "vistazo_csrf"
 def _set_auth_cookies(response: Response, raw_refresh: str, csrf_token: str) -> None:
     settings = get_settings()
     max_age = settings.refresh_token_expire_days * 86400
+    samesite = settings.cookie_samesite if settings.cookie_samesite in {"lax", "strict", "none"} else "lax"
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=raw_refresh,
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=samesite,  # type: ignore[arg-type]
         max_age=max_age,
         path="/api/v1/auth",
     )
@@ -43,7 +44,7 @@ def _set_auth_cookies(response: Response, raw_refresh: str, csrf_token: str) -> 
         value=csrf_token,
         httponly=False,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=samesite,  # type: ignore[arg-type]
         max_age=max_age,
         path="/",
     )

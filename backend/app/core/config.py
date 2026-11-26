@@ -24,6 +24,20 @@ def _parse_origins(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _normalize_database_url(raw_url: str) -> str:
+    """Adapta URLs postgres:// o postgresql:// de Supabase/Render al driver psycopg3 + SSL."""
+    url = raw_url.strip()
+    if url.startswith("postgres://"):
+        url = "postgresql+psycopg://" + url[len("postgres://") :]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://") :]
+
+    if ("supabase.co" in url or "supabase.com" in url) and "sslmode=" not in url:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}sslmode=require"
+    return url
+
+
 @dataclass(frozen=True)
 class Settings:
     """Parámetros inmutables de configuración del backend."""
@@ -31,9 +45,8 @@ class Settings:
     app_name: str = field(default_factory=lambda: os.getenv("APP_NAME", "Vistazo LMS API"))
     environment: str = field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
     database_url: str = field(
-        default_factory=lambda: os.getenv(
-            "DATABASE_URL",
-            "sqlite:///./vistazo_dev.db",
+        default_factory=lambda: _normalize_database_url(
+            os.getenv("DATABASE_URL", "sqlite:///./vistazo_dev.db")
         )
     )
     jwt_secret_key: str = field(
@@ -51,6 +64,9 @@ class Settings:
     )
     cookie_secure: bool = field(
         default_factory=lambda: _parse_bool(os.getenv("COOKIE_SECURE"), default=False)
+    )
+    cookie_samesite: str = field(
+        default_factory=lambda: os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
     )
     cors_origins: list[str] = field(
         default_factory=lambda: _parse_origins(os.getenv("CORS_ORIGINS"))

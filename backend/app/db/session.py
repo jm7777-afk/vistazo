@@ -16,6 +16,9 @@ def build_engine(database_url: str) -> Engine:
     connect_args: dict[str, object] = {}
     if database_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
+    elif "pooler.supabase.com" in database_url or ":6543/" in database_url:
+        # Evita colisión de prepared statements cuando se usa PgBouncer Transaction Pooler de Supabase
+        connect_args["prepare_threshold"] = None
 
     eng = create_engine(
         database_url,
