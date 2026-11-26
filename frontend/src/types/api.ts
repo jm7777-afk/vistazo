@@ -227,6 +227,37 @@ export interface AIProviderConfigOut {
   has_api_key_configured: boolean;
 }
 
+export interface CertificateOut {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  curriculum_version_id: string;
+  classroom_id: string | null;
+  certificate_number: string;
+  verification_hash: string;
+  final_grade: string;
+  status: 'pending' | 'issued' | 'revoked';
+  issued_at: string | null;
+  verification_url: string;
+  has_pdf: boolean;
+}
+
+export interface PublicCertificateVerification {
+  valid: boolean;
+  status: string;
+  certificate_number: string;
+  organization_name: string;
+  program_title: string;
+  curriculum_title: string;
+  recipient_initials: string;
+  final_grade: string;
+  issued_at: string | null;
+  signer_name: string;
+  signer_title: string;
+  revoked_at: string | null;
+  revocation_reason: string | null;
+}
+
 export interface ClassroomOut {
   id: string;
   organization_id: string;

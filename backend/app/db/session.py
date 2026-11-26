@@ -38,6 +38,11 @@ engine = build_engine(settings.database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+def get_session_factory() -> sessionmaker[Session]:
+    """Devuelve la fábrica de sesiones (inyectable para tareas en segundo plano)."""
+    return SessionLocal
+
+
 def get_db() -> Generator[Session, None, None]:
     """Provee una sesión de base de datos por petición HTTP."""
     db = SessionLocal()

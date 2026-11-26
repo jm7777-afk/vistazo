@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
 from app.db.seed import seed_database
-from app.db.session import build_engine, get_db
+from app.db.session import build_engine, get_db, get_session_factory
 from app.main import create_app
 import app.db.models  # noqa: F401
 
@@ -43,6 +43,7 @@ def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None
             yield session
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
     with TestClient(app) as test_client:
         yield test_client
 

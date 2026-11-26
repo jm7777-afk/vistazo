@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.modules.ai_assistant.router import router as ai_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.auth.router import router as auth_router
+from app.modules.certificates.router import router as certificates_router
 from app.modules.challenges.router import router as challenges_router
 from app.modules.courses.router import router as courses_router
 from app.modules.curriculum.router import router as curriculum_router
@@ -26,3 +27,4 @@ api_router.include_router(media_router)
 api_router.include_router(gamification_router)
 api_router.include_router(analytics_router)
 api_router.include_router(ai_router)
+api_router.include_router(certificates_router)

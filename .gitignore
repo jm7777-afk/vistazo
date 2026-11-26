@@ -8,6 +8,8 @@ venv/
 *.db
 *.sqlite3
 .env
+storage_media/
+storage_certificates/
 
 # Node / Frontend
 node_modules/

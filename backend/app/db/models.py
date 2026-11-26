@@ -4,6 +4,7 @@ from app.modules.ai_assistant.models import AIGenerationJob, AIProviderConfig
 from app.modules.audit.models import AuditLog
 from app.modules.auth.models import ParentalConsent, User, UserSession
 from app.modules.challenges.models import Challenge
+from app.modules.certificates.models import Certificate, CertificateRevocation, CertificateSignature
 from app.modules.courses.models import Course, Lesson, LessonVersion, Module
 from app.modules.curriculum.models import (
     Classroom,
@@ -26,6 +27,9 @@ __all__ = [
     "AIProviderConfig",
     "AuditLog",
     "Badge",
+    "Certificate",
+    "CertificateRevocation",
+    "CertificateSignature",
     "Challenge",
     "ChallengeAttempt",
     "ChallengeMediaAsset",

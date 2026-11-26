@@ -20,6 +20,9 @@ Plataforma LMS modular con aislamiento multi-tenant estricto, modo institucional
 - **Generador de Lecciones** (`/api/v1/orgs/{org_id}/ai/generate-lesson-draft`): crea borradores de 5–8 retos validados por Pydantic (`status='draft'`, `ai_generated=True`) sin enviar PII.
 - **Tutor Socrático** (`/api/v1/challenges/{challenge_id}/socratic-hint`): habilitado tras 2 intentos fallidos, con guardrails anti-*prompt-injection*, sanitización de salidas y recordatorio obligatorio al instructor en protocolos críticos.
 
+### Fase 4 (Certificación Verificable)
+- Emisión institucional por pensum aprobado (`POST /api/v1/orgs/{org_id}/certificates/issue`), hash SHA-256 único, firma HMAC autorizada, generación asíncrona de PDF con código QR (`reportlab`), descarga protegida (`/api/v1/certificates/{id}/pdf`), revocación auditada (`/revoke`) y verificación pública anti-enumeración sin PII sensible (`GET /verificar-certificado/{hash}`).
+
 ## Inicio rápido con Docker
 
 ```bash

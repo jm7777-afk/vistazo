@@ -6,6 +6,7 @@ import { useAppState } from '../stores/AppContext';
 import type {
   AIJobOut,
   AIProviderConfigOut,
+  CertificateOut,
   ClassroomAnalytics,
   ClassroomOut,
   ClassroomStudentOut,
@@ -347,7 +348,112 @@ export function CoordinatorPage() {
           ))}
         </div>
       )}
+
+      <CoordinatorCertificatesPanel orgId={activeOrg.organization_id} programId={programsQuery.data?.[0]?.id} />
     </div>
+  );
+}
+
+function CoordinatorCertificatesPanel({ orgId, programId }: { orgId: string; programId?: string }) {
+  const queryClient = useQueryClient();
+  const [studentEmail, setStudentEmail] = useState('');
+  const [signerTitle, setSignerTitle] = useState('Coordinación Académica');
+
+  const cvsQuery = useQuery({
+    queryKey: ['org-cvs-cert', orgId, programId],
+    queryFn: () => apiRequest<{ id: string; title: string; status: string }[]>(`/orgs/${orgId}/programs/${programId}/curriculum-versions`),
+    enabled: Boolean(programId),
+  });
+
+  const certsQuery = useQuery({
+    queryKey: ['org-certs', orgId],
+    queryFn: () => apiRequest<CertificateOut[]>(`/orgs/${orgId}/certificates`),
+  });
+
+  const publishedCvId = cvsQuery.data?.find((c) => c.status === 'published')?.id ?? '';
+
+  const issueMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<CertificateOut>(`/orgs/${orgId}/certificates/issue`, {
+        method: 'POST',
+        body: JSON.stringify({
+          student_email: studentEmail,
+          curriculum_version_id: publishedCvId,
+          signer_title: signerTitle,
+        }),
+      }),
+    onSuccess: () => {
+      setStudentEmail('');
+      void queryClient.invalidateQueries({ queryKey: ['org-certs', orgId] });
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (certId: string) =>
+      apiRequest<CertificateOut>(`/orgs/${orgId}/certificates/${certId}/revoke`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Revocación administrativa institucional' }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['org-certs', orgId] });
+    },
+  });
+
+  return (
+    <section className="surface-card p-5 space-y-4">
+      <h2 className="text-base font-bold">Emisión y Revocación de Certificados</h2>
+      {issueMutation.error && <ErrorBanner message={(issueMutation.error as Error).message} />}
+
+      {publishedCvId && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            issueMutation.mutate();
+          }}
+          className="grid gap-3 sm:grid-cols-3"
+        >
+          <input
+            type="email"
+            required
+            placeholder="correo@estudiante.org"
+            value={studentEmail}
+            onChange={(e) => setStudentEmail(e.target.value)}
+            className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+          />
+          <input
+            type="text"
+            required
+            value={signerTitle}
+            onChange={(e) => setSignerTitle(e.target.value)}
+            className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+          />
+          <button type="submit" disabled={issueMutation.isPending} className="btn-primary px-4 py-2 text-xs font-semibold">
+            Emitir certificado
+          </button>
+        </form>
+      )}
+
+      {certsQuery.data && certsQuery.data.length > 0 && (
+        <ul className="space-y-2 text-xs">
+          {certsQuery.data.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3">
+              <span>
+                <strong>{c.certificate_number}</strong> • {c.final_grade}% • {c.status}
+              </span>
+              {c.status !== 'revoked' && (
+                <button
+                  type="button"
+                  onClick={() => revokeMutation.mutate(c.id)}
+                  className="rounded border border-red-300 px-2.5 py-1 font-semibold text-red-700 hover:bg-red-50"
+                >
+                  Revocar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
