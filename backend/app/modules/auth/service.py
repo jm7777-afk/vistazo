@@ -70,6 +70,7 @@ def build_user_summary(db: Session, user: User) -> UserSummary:
         id=user.id,
         email=user.email,
         full_name=user.full_name,
+        account_type=user.account_type,
         is_minor=user.is_minor,
         preferred_ui_profile=user.preferred_ui_profile,
         daily_goal_minutes=user.daily_goal_minutes,
@@ -81,7 +82,7 @@ def build_user_summary(db: Session, user: User) -> UserSummary:
 
 
 def register_user(db: Session, data: RegisterRequest, ip_address: str | None) -> User:
-    """Registra un usuario nuevo validando unicidad y consentimiento si es menor."""
+    """Registra un usuario nuevo validando unicidad, rol (estudiante/educador) y consentimiento si es menor."""
     normalized_email = data.email.strip().lower()
     existing = db.scalar(
         select(User).where(User.email == normalized_email, User.deleted_at.is_(None))
@@ -90,6 +91,11 @@ def register_user(db: Session, data: RegisterRequest, ip_address: str | None) ->
         raise ConflictError("El correo electrónico ya está registrado")
 
     is_minor = _is_minor_birth_date(data.birth_date)
+    if is_minor and data.account_type == "educator":
+        raise ValidationDomainError(
+            "Las cuentas de educador requieren edad mínima de 14 años",
+            code="educator_age_restricted",
+        )
     if is_minor and (not data.guardian_name or not data.guardian_email):
         raise ValidationDomainError(
             "El registro de menores requiere nombre y correo del representante legal",
@@ -100,6 +106,7 @@ def register_user(db: Session, data: RegisterRequest, ip_address: str | None) ->
         email=normalized_email,
         password_hash=hash_password(data.password),
         full_name=data.full_name.strip(),
+        account_type=data.account_type,
         birth_date=data.birth_date,
         is_minor=is_minor,
         preferred_ui_profile=data.preferred_ui_profile,
@@ -117,14 +124,49 @@ def register_user(db: Session, data: RegisterRequest, ip_address: str | None) ->
         )
         db.add(consent)
 
+    workspace_id: uuid.UUID | None = None
+    if data.account_type == "educator":
+        coord_role = db.scalar(
+            select(Role).where(
+                Role.code == "coordinator",
+                Role.organization_id.is_(None),
+                Role.deleted_at.is_(None),
+            )
+        )
+        if coord_role:
+            ws_name = (data.workspace_name or "").strip() or f"Espacio Docente de {user.full_name}"
+            ws_slug = f"edu-{uuid.uuid4().hex[:10]}"
+            workspace = Organization(
+                name=ws_name[:180],
+                slug=ws_slug,
+                sector_type=data.sector_type,
+                default_ui_profile=data.preferred_ui_profile,
+                settings_json={"personal_educator_workspace": True, "owner_user_id": str(user.id)},
+            )
+            db.add(workspace)
+            db.flush()
+            db.add(
+                OrganizationMember(
+                    organization_id=workspace.id,
+                    user_id=user.id,
+                    role_id=coord_role.id,
+                )
+            )
+            workspace_id = workspace.id
+
     record_audit_log(
         db,
         action="auth.register",
         resource_type="user",
         resource_id=user.id,
+        organization_id=workspace_id,
         actor_user_id=user.id,
         ip_address=ip_address,
-        details={"is_minor": is_minor},
+        details={
+            "is_minor": is_minor,
+            "account_type": data.account_type,
+            "workspace_created": workspace_id is not None,
+        },
     )
     db.commit()
     db.refresh(user)

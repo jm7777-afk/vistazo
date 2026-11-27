@@ -11,6 +11,7 @@ import { LessonPlayerPage } from '../pages/LessonPlayerPage';
 import { OnboardingPage } from '../pages/OnboardingPage';
 import { CoordinatorPage, InstructorPage, ProfilePage, SuperAdminPage } from '../pages/RoleDashboards';
 import { SpacedReviewPage } from '../pages/SpacedReviewPage';
+import { StudioPage } from '../pages/StudioPage';
 import { VisualLibraryPage } from '../pages/VisualLibraryPage';
 import { useAppState } from '../stores/AppContext';
 
@@ -36,10 +37,12 @@ export function AppRouter() {
             <Route path="/verificar-certificado/:hash" element={<VerifyCertificatePage />} />
             <Route path="/courses/:courseId" element={<CourseDetailPage />} />
             <Route path="/lessons/:lessonVersionId" element={<LessonPlayerPage />} />
+            <Route path="/studio" element={<StudioPage />} />
             <Route path="/instructor" element={<InstructorPage />} />
             <Route path="/coordinator" element={<CoordinatorPage />} />
             <Route path="/admin" element={<SuperAdminPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="*" element={<LandingPage />} />
           </Routes>
         )}
       </AppShell>

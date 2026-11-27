@@ -9,6 +9,12 @@ function resolveApiBase(): string {
 export const API_BASE = resolveApiBase();
 export const API_ORIGIN = API_BASE.replace(/\/api\/v1$/, '');
 
+export function resolveAssetUrl(pathOrUrl: string | null | undefined): string {
+  if (!pathOrUrl) return '';
+  if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) return pathOrUrl;
+  return `${API_ORIGIN}${pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`}`;
+}
+
 let accessTokenMemory: string | null = null;
 let csrfTokenMemory: string | null = null;
 
@@ -91,7 +97,7 @@ export async function apiRequest<T>(
   retryOnAuth = true
 ): Promise<T> {
   const headers = new Headers(options.headers);
-  if (!headers.has('Content-Type') && options.body) {
+  if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
   if (accessTokenMemory) {

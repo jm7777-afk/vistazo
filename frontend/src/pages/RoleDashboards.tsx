@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { Wand2 } from 'lucide-react';
 import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
@@ -52,11 +54,16 @@ export function InstructorPage() {
 
   return (
     <div className="space-y-6">
-      <div className="surface-card p-6">
-        <h1 className="text-xl font-bold">Panel de Instructor — {activeOrg.organization_name}</h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Solo ves las aulas y estudiantes explícitamente asignados a tu cuenta.
-        </p>
+      <div className="surface-card p-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Panel de Instructor — {activeOrg.organization_name}</h1>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Solo ves las aulas y estudiantes explícitamente asignados a tu cuenta.
+          </p>
+        </div>
+        <Link to="/studio" className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs font-bold">
+          <Wand2 className="h-4 w-4" /> Abrir Estudio Pedagógico (CRUD + IA)
+        </Link>
       </div>
 
       {analyticsQuery.data && (
@@ -777,9 +784,14 @@ export function SuperAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="surface-card p-6">
-        <h1 className="text-xl font-bold">Panel SuperAdministrador</h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">Onboarding atómico multi-institucional y proveedores IA.</p>
+      <div className="surface-card p-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Panel SuperAdministrador</h1>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Onboarding atómico multi-institucional, contenido global y proveedores IA.</p>
+        </div>
+        <Link to="/studio" className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs font-bold">
+          <Wand2 className="h-4 w-4" /> Abrir Estudio SuperAdmin (Catálogo + CRUD + IA)
+        </Link>
       </div>
 
       {onboardOrg.error && <ErrorBanner message={(onboardOrg.error as Error).message} />}

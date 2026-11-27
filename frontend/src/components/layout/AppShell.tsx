@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Award, BookOpen, Brain, Compass, Layers, LayoutDashboard, LogOut, Shield, UserCircle2, Users, WifiOff } from 'lucide-react';
+import { Award, BookOpen, Brain, Compass, Layers, LayoutDashboard, LogOut, Shield, UserCircle2, Users, Wand2, WifiOff } from 'lucide-react';
 import { flushOfflineAttempts, listOfflineAttempts } from '../../pwa/offlineQueue';
 import { apiRequest } from '../../services/apiClient';
 import { useAppState } from '../../stores/AppContext';
@@ -45,12 +45,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [user]);
 
+  const canAuthor = Boolean(
+    user?.is_super_admin ||
+      user?.account_type === 'educator' ||
+      (activeOrg && ['instructor', 'coordinator'].includes(activeOrg.role_code))
+  );
+
   const navItems = [
     { to: '/catalog', label: 'Catálogo Libre', icon: Compass, show: true },
     { to: '/dashboard', label: 'Mi Aprendizaje', icon: LayoutDashboard, show: Boolean(user) },
     { to: '/reviews', label: 'Repaso', icon: Brain, show: Boolean(user) },
     { to: '/library', label: 'Biblioteca', icon: Layers, show: Boolean(user) },
     { to: '/certificates', label: 'Certificados', icon: Award, show: Boolean(user) },
+    { to: '/studio', label: 'Estudio', icon: Wand2, show: canAuthor },
     {
       to: '/instructor',
       label: 'Instructor',

@@ -1,93 +1,64 @@
-"""Endpoints para catálogo público de estudio libre y autoría de cursos institucionales."""
+"""Endpoints para catálogo público, cursos, módulos, lecciones y guías de estudio (Org + SuperAdmin)."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import TenantContext, get_optional_user, get_tenant_context, require_permission
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationDomainError
+from app.api.deps import TenantContext, get_optional_user, get_tenant_context, require_permission, require_super_admin
+from app.core.exceptions import ForbiddenError, NotFoundError
 from app.db.session import get_db
 from app.modules.auth.models import User
-from app.modules.challenges.models import Challenge
-from app.modules.courses.models import Course, Lesson, LessonVersion, Module
+from app.modules.courses.models import Course, StudyGuide
 from app.modules.courses.schemas import (
     CourseCreate,
     CourseDetailOut,
     CourseSummaryOut,
+    CourseUpdate,
     LessonCreate,
     LessonOut,
+    LessonUpdate,
     LessonVersionCreate,
     LessonVersionOut,
     ModuleCreate,
     ModuleOut,
+    ModuleUpdate,
+    StudyGuideCreate,
+    StudyGuideOut,
+    StudyGuideUpdate,
+)
+from app.modules.courses.service import (
+    build_course_detail,
+    create_scoped_course,
+    create_scoped_lesson,
+    create_scoped_lesson_version,
+    create_scoped_module,
+    create_scoped_study_guide,
+    delete_scoped_course,
+    delete_scoped_lesson,
+    delete_scoped_module,
+    delete_scoped_study_guide,
+    list_scoped_courses,
+    list_scoped_lesson_versions,
+    list_scoped_study_guides,
+    publish_scoped_lesson_version,
+    to_course_summary,
+    update_scoped_course,
+    update_scoped_lesson,
+    update_scoped_module,
+    update_scoped_study_guide,
 )
 from app.modules.tenants.models import OrganizationMember
 
 router = APIRouter(tags=["courses"])
 
 
-def _build_course_detail(db: Session, course: Course) -> CourseDetailOut:
-    modules = db.scalars(
-        select(Module)
-        .where(Module.course_id == course.id, Module.deleted_at.is_(None))
-        .order_by(Module.order_index)
-    ).all()
-
-    modules_out: list[ModuleOut] = []
-    for mod in modules:
-        lessons = db.scalars(
-            select(Lesson)
-            .where(Lesson.module_id == mod.id, Lesson.deleted_at.is_(None))
-            .order_by(Lesson.order_index)
-        ).all()
-        lessons_out: list[LessonOut] = []
-        for les in lessons:
-            published_ver = db.scalar(
-                select(LessonVersion)
-                .where(LessonVersion.lesson_id == les.id, LessonVersion.status == "published")
-                .order_by(LessonVersion.version_number.desc())
-            )
-            lessons_out.append(
-                LessonOut(
-                    id=les.id,
-                    title=les.title,
-                    slug=les.slug,
-                    order_index=les.order_index,
-                    estimated_minutes=les.estimated_minutes,
-                    is_safety_critical=les.is_safety_critical,
-                    active_lesson_version_id=published_ver.id if published_ver else None,
-                    active_version_number=published_ver.version_number if published_ver else None,
-                )
-            )
-        modules_out.append(
-            ModuleOut(
-                id=mod.id,
-                title=mod.title,
-                description=mod.description,
-                order_index=mod.order_index,
-                lessons=lessons_out,
-            )
-        )
-
-    return CourseDetailOut(
-        id=course.id,
-        organization_id=course.organization_id,
-        title=course.title,
-        slug=course.slug,
-        description=course.description,
-        education_level=course.education_level,
-        ui_profile=course.ui_profile,
-        visibility=course.visibility,
-        status=course.status,
-        modules=modules_out,
-    )
-
-
+# ---------------------------------------------------------------------------
+# Lectura pública / estudiante
+# ---------------------------------------------------------------------------
 @router.get("/catalog/courses", response_model=list[CourseSummaryOut])
 def list_public_catalog(db: Session = Depends(get_db)) -> list[CourseSummaryOut]:
     """Catálogo de cursos públicos para Modo Estudio Libre."""
@@ -101,20 +72,7 @@ def list_public_catalog(db: Session = Depends(get_db)) -> list[CourseSummaryOut]
         )
         .order_by(Course.created_at.desc())
     ).all()
-    return [
-        CourseSummaryOut(
-            id=c.id,
-            organization_id=c.organization_id,
-            title=c.title,
-            slug=c.slug,
-            description=c.description,
-            education_level=c.education_level,
-            ui_profile=c.ui_profile,
-            visibility=c.visibility,
-            status=c.status,
-        )
-        for c in courses
-    ]
+    return [to_course_summary(c) for c in courses]
 
 
 @router.get("/courses/{course_id}", response_model=CourseDetailOut)
@@ -124,14 +82,12 @@ def get_course_detail(
     db: Session = Depends(get_db),
 ) -> CourseDetailOut:
     """Obtiene detalle de curso público o institucional validando tenencia en backend."""
-    course = db.scalar(
-        select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
-    )
+    course = db.scalar(select(Course).where(Course.id == course_id, Course.deleted_at.is_(None)))
     if not course:
         raise NotFoundError("Curso no encontrado")
 
     if course.visibility == "public" and course.status == "published":
-        return _build_course_detail(db, course)
+        return build_course_detail(db, course)
 
     if not current_user:
         raise ForbiddenError("Acceso restringido a miembros de la organización")
@@ -148,33 +104,72 @@ def get_course_detail(
         if not member:
             raise ForbiddenError("No tienes acceso a cursos de esta organización")
 
-    return _build_course_detail(db, course)
+    return build_course_detail(db, course)
 
 
+@router.get("/courses/{course_id}/study-guides", response_model=list[StudyGuideOut])
+def list_course_published_guides(
+    course_id: uuid.UUID,
+    current_user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> list[StudyGuideOut]:
+    """Devuelve guías de estudio, temarios y metodologías publicadas del curso."""
+    course = db.scalar(select(Course).where(Course.id == course_id, Course.deleted_at.is_(None)))
+    if not course:
+        raise NotFoundError("Curso no encontrado")
+
+    if not (course.visibility == "public" and course.status == "published"):
+        if not current_user:
+            raise ForbiddenError("Acceso restringido")
+        if not current_user.is_super_admin:
+            member = db.scalar(
+                select(OrganizationMember).where(
+                    OrganizationMember.organization_id == course.organization_id,
+                    OrganizationMember.user_id == current_user.id,
+                    OrganizationMember.deleted_at.is_(None),
+                    OrganizationMember.status == "active",
+                )
+            )
+            if not member:
+                raise ForbiddenError("No tienes acceso a este curso")
+
+    guides = db.scalars(
+        select(StudyGuide)
+        .where(
+            StudyGuide.course_id == course.id,
+            StudyGuide.status == "published",
+            StudyGuide.deleted_at.is_(None),
+        )
+        .order_by(StudyGuide.created_at.asc())
+    ).all()
+    return [
+        StudyGuideOut(
+            id=g.id,
+            organization_id=g.organization_id,
+            course_id=g.course_id,
+            lesson_id=g.lesson_id,
+            guide_type=g.guide_type,
+            title=g.title,
+            content_markdown=g.content_markdown,
+            methodology_json=g.methodology_json,
+            status=g.status,
+            ai_generated=g.ai_generated,
+            created_at=g.created_at,
+            updated_at=g.updated_at,
+        )
+        for g in guides
+    ]
+
+
+# ---------------------------------------------------------------------------
+# CRUD Institucional (Educador / Coordinador / Instructor / SuperAdmin en org)
+# ---------------------------------------------------------------------------
 @router.get("/orgs/{org_id}/courses", response_model=list[CourseSummaryOut])
 def list_org_courses(
     tenant: TenantContext = Depends(get_tenant_context),
     db: Session = Depends(get_db),
 ) -> list[CourseSummaryOut]:
-    courses = db.scalars(
-        select(Course)
-        .where(Course.organization_id == tenant.organization.id, Course.deleted_at.is_(None))
-        .order_by(Course.created_at.desc())
-    ).all()
-    return [
-        CourseSummaryOut(
-            id=c.id,
-            organization_id=c.organization_id,
-            title=c.title,
-            slug=c.slug,
-            description=c.description,
-            education_level=c.education_level,
-            ui_profile=c.ui_profile,
-            visibility=c.visibility,
-            status=c.status,
-        )
-        for c in courses
-    ]
+    return list_scoped_courses(db, tenant.organization.id)
 
 
 @router.post("/orgs/{org_id}/courses", response_model=CourseSummaryOut, status_code=status.HTTP_201_CREATED)
@@ -183,272 +178,345 @@ def create_org_course(
     tenant: TenantContext = Depends(require_permission("lesson:author")),
     db: Session = Depends(get_db),
 ) -> CourseSummaryOut:
-    dup = db.scalar(
-        select(Course).where(
-            Course.organization_id == tenant.organization.id,
-            func.lower(Course.slug) == payload.slug.lower(),
-            Course.deleted_at.is_(None),
-        )
+    return create_scoped_course(
+        db, organization_id=tenant.organization.id, actor_user_id=tenant.user.id, payload=payload
     )
-    if dup:
-        raise ConflictError("Ya existe un curso con ese slug en la organización")
 
-    course = Course(
-        organization_id=tenant.organization.id,
-        title=payload.title.strip(),
-        slug=payload.slug.lower(),
-        description=payload.description,
-        education_level=payload.education_level,
-        ui_profile=payload.ui_profile,
-        visibility=payload.visibility,
-        status="draft",
-        created_by=tenant.user.id,
+
+@router.patch("/orgs/{org_id}/courses/{course_id}", response_model=CourseSummaryOut)
+def update_org_course(
+    course_id: uuid.UUID,
+    payload: CourseUpdate,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> CourseSummaryOut:
+    return update_scoped_course(
+        db, course_id=course_id, organization_id=tenant.organization.id, payload=payload
     )
-    db.add(course)
-    db.commit()
-    db.refresh(course)
-    return CourseSummaryOut(
-        id=course.id,
-        organization_id=course.organization_id,
-        title=course.title,
-        slug=course.slug,
-        description=course.description,
-        education_level=course.education_level,
-        ui_profile=course.ui_profile,
-        visibility=course.visibility,
-        status=course.status,
+
+
+@router.delete("/orgs/{org_id}/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_org_course(
+    course_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_course(
+        db, course_id=course_id, organization_id=tenant.organization.id, actor_user_id=tenant.user.id
     )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/orgs/{org_id}/courses/{course_id}/modules", response_model=ModuleOut, status_code=status.HTTP_201_CREATED)
-def create_module(
+def create_org_module(
     course_id: uuid.UUID,
     payload: ModuleCreate,
     tenant: TenantContext = Depends(require_permission("lesson:author")),
     db: Session = Depends(get_db),
 ) -> ModuleOut:
-    course = db.scalar(
-        select(Course).where(
-            Course.id == course_id,
-            Course.organization_id == tenant.organization.id,
-            Course.deleted_at.is_(None),
-        )
+    return create_scoped_module(
+        db, course_id=course_id, organization_id=tenant.organization.id, payload=payload
     )
-    if not course:
-        raise NotFoundError("Curso no encontrado en esta organización")
 
-    mod = Module(
-        course_id=course.id,
-        title=payload.title.strip(),
-        description=payload.description,
-        order_index=payload.order_index,
+
+@router.patch("/orgs/{org_id}/modules/{module_id}", response_model=ModuleOut)
+def update_org_module(
+    module_id: uuid.UUID,
+    payload: ModuleUpdate,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> ModuleOut:
+    return update_scoped_module(
+        db, module_id=module_id, organization_id=tenant.organization.id, payload=payload
     )
-    db.add(mod)
-    db.commit()
-    db.refresh(mod)
-    return ModuleOut(
-        id=mod.id,
-        title=mod.title,
-        description=mod.description,
-        order_index=mod.order_index,
-        lessons=[],
-    )
+
+
+@router.delete("/orgs/{org_id}/modules/{module_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_org_module(
+    module_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_module(db, module_id=module_id, organization_id=tenant.organization.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/orgs/{org_id}/modules/{module_id}/lessons", response_model=LessonOut, status_code=status.HTTP_201_CREATED)
-def create_lesson(
+def create_org_lesson(
     module_id: uuid.UUID,
     payload: LessonCreate,
     tenant: TenantContext = Depends(require_permission("lesson:author")),
     db: Session = Depends(get_db),
 ) -> LessonOut:
-    mod_course = db.execute(
-        select(Module, Course)
-        .join(Course, Module.course_id == Course.id)
-        .where(
-            Module.id == module_id,
-            Module.deleted_at.is_(None),
-            Course.organization_id == tenant.organization.id,
-            Course.deleted_at.is_(None),
-        )
-    ).first()
-    if not mod_course:
-        raise NotFoundError("Módulo no encontrado en esta organización")
+    return create_scoped_lesson(
+        db, module_id=module_id, organization_id=tenant.organization.id, payload=payload
+    )
 
-    lesson = Lesson(
-        module_id=module_id,
-        title=payload.title.strip(),
-        slug=payload.slug.lower(),
-        order_index=payload.order_index,
-        estimated_minutes=payload.estimated_minutes,
-        is_safety_critical=payload.is_safety_critical,
-    )
-    db.add(lesson)
-    db.flush()
 
-    v1 = LessonVersion(
-        lesson_id=lesson.id,
-        version_number=1,
-        summary="Versión inicial",
-        status="draft",
+@router.patch("/orgs/{org_id}/lessons/{lesson_id}", response_model=LessonOut)
+def update_org_lesson(
+    lesson_id: uuid.UUID,
+    payload: LessonUpdate,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> LessonOut:
+    return update_scoped_lesson(
+        db, lesson_id=lesson_id, organization_id=tenant.organization.id, payload=payload
     )
-    db.add(v1)
-    db.commit()
-    db.refresh(lesson)
-    return LessonOut(
-        id=lesson.id,
-        title=lesson.title,
-        slug=lesson.slug,
-        order_index=lesson.order_index,
-        estimated_minutes=lesson.estimated_minutes,
-        is_safety_critical=lesson.is_safety_critical,
-        active_lesson_version_id=v1.id,
-        active_version_number=v1.version_number,
-    )
+
+
+@router.delete("/orgs/{org_id}/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_org_lesson(
+    lesson_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_lesson(db, lesson_id=lesson_id, organization_id=tenant.organization.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/orgs/{org_id}/lessons/{lesson_id}/versions", response_model=list[LessonVersionOut])
-def list_lesson_versions(
+def list_org_lesson_versions(
     lesson_id: uuid.UUID,
     tenant: TenantContext = Depends(require_permission("lesson:author")),
     db: Session = Depends(get_db),
 ) -> list[LessonVersionOut]:
-    row = db.execute(
-        select(Lesson, Course)
-        .join(Module, Lesson.module_id == Module.id)
-        .join(Course, Module.course_id == Course.id)
-        .where(
-            Lesson.id == lesson_id,
-            Lesson.deleted_at.is_(None),
-            Course.organization_id == tenant.organization.id,
-            Course.deleted_at.is_(None),
-        )
-    ).first()
-    if not row:
-        raise NotFoundError("Lección no encontrada en esta organización")
-
-    versions = db.scalars(
-        select(LessonVersion)
-        .where(LessonVersion.lesson_id == lesson_id)
-        .order_by(LessonVersion.version_number.desc())
-    ).all()
-    return [
-        LessonVersionOut(
-            id=lv.id,
-            lesson_id=lv.lesson_id,
-            version_number=lv.version_number,
-            summary=lv.summary,
-            status=lv.status,
-            requires_revalidation=lv.requires_revalidation,
-            published_at=lv.published_at,
-        )
-        for lv in versions
-    ]
+    return list_scoped_lesson_versions(db, lesson_id=lesson_id, organization_id=tenant.organization.id)
 
 
 @router.post("/orgs/{org_id}/lessons/{lesson_id}/versions", response_model=LessonVersionOut, status_code=status.HTTP_201_CREATED)
-def create_lesson_version(
+def create_org_lesson_version(
     lesson_id: uuid.UUID,
     payload: LessonVersionCreate,
     tenant: TenantContext = Depends(require_permission("lesson:author")),
     db: Session = Depends(get_db),
 ) -> LessonVersionOut:
-    row = db.execute(
-        select(Lesson, Course)
-        .join(Module, Lesson.module_id == Module.id)
-        .join(Course, Module.course_id == Course.id)
-        .where(
-            Lesson.id == lesson_id,
-            Lesson.deleted_at.is_(None),
-            Course.organization_id == tenant.organization.id,
-            Course.deleted_at.is_(None),
-        )
-    ).first()
-    if not row:
-        raise NotFoundError("Lección no encontrada en esta organización")
-
-    max_ver = db.scalar(
-        select(func.coalesce(func.max(LessonVersion.version_number), 0)).where(
-            LessonVersion.lesson_id == lesson_id
-        )
-    )
-    lv = LessonVersion(
-        lesson_id=lesson_id,
-        version_number=int(max_ver or 0) + 1,
-        summary=payload.summary,
-        requires_revalidation=payload.requires_revalidation,
-        status="draft",
-    )
-    db.add(lv)
-    db.commit()
-    db.refresh(lv)
-    return LessonVersionOut(
-        id=lv.id,
-        lesson_id=lv.lesson_id,
-        version_number=lv.version_number,
-        summary=lv.summary,
-        status=lv.status,
-        requires_revalidation=lv.requires_revalidation,
-        published_at=lv.published_at,
+    return create_scoped_lesson_version(
+        db, lesson_id=lesson_id, organization_id=tenant.organization.id, payload=payload
     )
 
 
 @router.post("/orgs/{org_id}/lesson-versions/{lesson_version_id}/publish", response_model=LessonVersionOut)
-def publish_lesson_version(
+def publish_org_lesson_version(
     lesson_version_id: uuid.UUID,
     tenant: TenantContext = Depends(require_permission("lesson:author")),
     db: Session = Depends(get_db),
 ) -> LessonVersionOut:
-    row = db.execute(
-        select(LessonVersion, Lesson, Course)
-        .join(Lesson, LessonVersion.lesson_id == Lesson.id)
-        .join(Module, Lesson.module_id == Module.id)
-        .join(Course, Module.course_id == Course.id)
-        .where(
-            LessonVersion.id == lesson_version_id,
-            Course.organization_id == tenant.organization.id,
-            Course.deleted_at.is_(None),
-        )
-    ).first()
-    if not row:
-        raise NotFoundError("Versión de lección no encontrada en esta organización")
-
-    lv, lesson, course = row
-    challenges = db.scalars(
-        select(Challenge).where(Challenge.lesson_version_id == lv.id, Challenge.deleted_at.is_(None))
-    ).all()
-    if not challenges:
-        raise ValidationDomainError("La versión de lección debe tener al menos un reto antes de publicarse")
-
-    # Marca versiones publicadas anteriores como superseded sin tocar el progreso histórico
-    prev_published = db.scalars(
-        select(LessonVersion).where(
-            LessonVersion.lesson_id == lesson.id,
-            LessonVersion.status == "published",
-            LessonVersion.id != lv.id,
-        )
-    ).all()
-    for prev in prev_published:
-        prev.status = "superseded"
-
-    for ch in challenges:
-        if ch.status == "draft":
-            ch.status = "published"
-
-    lv.status = "published"
-    lv.published_by = tenant.user.id
-    lv.published_at = datetime.now(timezone.utc)
-    if course.status == "draft":
-        course.status = "published"
-
-    db.commit()
-    db.refresh(lv)
-    return LessonVersionOut(
-        id=lv.id,
-        lesson_id=lv.lesson_id,
-        version_number=lv.version_number,
-        summary=lv.summary,
-        status=lv.status,
-        requires_revalidation=lv.requires_revalidation,
-        published_at=lv.published_at,
+    return publish_scoped_lesson_version(
+        db,
+        lesson_version_id=lesson_version_id,
+        organization_id=tenant.organization.id,
+        actor_user_id=tenant.user.id,
     )
+
+
+@router.get("/orgs/{org_id}/study-guides", response_model=list[StudyGuideOut])
+def list_org_study_guides(
+    course_id: uuid.UUID | None = Query(default=None),
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> list[StudyGuideOut]:
+    return list_scoped_study_guides(db, organization_id=tenant.organization.id, course_id=course_id)
+
+
+@router.post("/orgs/{org_id}/study-guides", response_model=StudyGuideOut, status_code=status.HTTP_201_CREATED)
+def create_org_study_guide(
+    payload: StudyGuideCreate,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> StudyGuideOut:
+    return create_scoped_study_guide(
+        db, organization_id=tenant.organization.id, actor_user_id=tenant.user.id, payload=payload
+    )
+
+
+@router.patch("/orgs/{org_id}/study-guides/{guide_id}", response_model=StudyGuideOut)
+def update_org_study_guide(
+    guide_id: uuid.UUID,
+    payload: StudyGuideUpdate,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> StudyGuideOut:
+    return update_scoped_study_guide(
+        db, guide_id=guide_id, organization_id=tenant.organization.id, payload=payload
+    )
+
+
+@router.delete("/orgs/{org_id}/study-guides/{guide_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_org_study_guide(
+    guide_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_study_guide(
+        db, guide_id=guide_id, organization_id=tenant.organization.id, actor_user_id=tenant.user.id
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# CRUD Global SuperAdmin (Catálogo Libre Público: organization_id IS NULL)
+# ---------------------------------------------------------------------------
+@router.get("/admin/courses", response_model=list[CourseSummaryOut])
+def list_global_courses(
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> list[CourseSummaryOut]:
+    return list_scoped_courses(db, None)
+
+
+@router.post("/admin/courses", response_model=CourseSummaryOut, status_code=status.HTTP_201_CREATED)
+def create_global_course(
+    payload: CourseCreate,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> CourseSummaryOut:
+    return create_scoped_course(db, organization_id=None, actor_user_id=admin.id, payload=payload)
+
+
+@router.patch("/admin/courses/{course_id}", response_model=CourseSummaryOut)
+def update_global_course(
+    course_id: uuid.UUID,
+    payload: CourseUpdate,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> CourseSummaryOut:
+    return update_scoped_course(db, course_id=course_id, organization_id=None, payload=payload)
+
+
+@router.delete("/admin/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_global_course(
+    course_id: uuid.UUID,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_course(db, course_id=course_id, organization_id=None, actor_user_id=admin.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/admin/courses/{course_id}/modules", response_model=ModuleOut, status_code=status.HTTP_201_CREATED)
+def create_global_module(
+    course_id: uuid.UUID,
+    payload: ModuleCreate,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> ModuleOut:
+    return create_scoped_module(db, course_id=course_id, organization_id=None, payload=payload)
+
+
+@router.patch("/admin/modules/{module_id}", response_model=ModuleOut)
+def update_global_module(
+    module_id: uuid.UUID,
+    payload: ModuleUpdate,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> ModuleOut:
+    return update_scoped_module(db, module_id=module_id, organization_id=None, payload=payload)
+
+
+@router.delete("/admin/modules/{module_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_global_module(
+    module_id: uuid.UUID,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_module(db, module_id=module_id, organization_id=None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/admin/modules/{module_id}/lessons", response_model=LessonOut, status_code=status.HTTP_201_CREATED)
+def create_global_lesson(
+    module_id: uuid.UUID,
+    payload: LessonCreate,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> LessonOut:
+    return create_scoped_lesson(db, module_id=module_id, organization_id=None, payload=payload)
+
+
+@router.patch("/admin/lessons/{lesson_id}", response_model=LessonOut)
+def update_global_lesson(
+    lesson_id: uuid.UUID,
+    payload: LessonUpdate,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> LessonOut:
+    return update_scoped_lesson(db, lesson_id=lesson_id, organization_id=None, payload=payload)
+
+
+@router.delete("/admin/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_global_lesson(
+    lesson_id: uuid.UUID,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_lesson(db, lesson_id=lesson_id, organization_id=None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/admin/lessons/{lesson_id}/versions", response_model=list[LessonVersionOut])
+def list_global_lesson_versions(
+    lesson_id: uuid.UUID,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> list[LessonVersionOut]:
+    return list_scoped_lesson_versions(db, lesson_id=lesson_id, organization_id=None)
+
+
+@router.post("/admin/lessons/{lesson_id}/versions", response_model=LessonVersionOut, status_code=status.HTTP_201_CREATED)
+def create_global_lesson_version(
+    lesson_id: uuid.UUID,
+    payload: LessonVersionCreate,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> LessonVersionOut:
+    return create_scoped_lesson_version(db, lesson_id=lesson_id, organization_id=None, payload=payload)
+
+
+@router.post("/admin/lesson-versions/{lesson_version_id}/publish", response_model=LessonVersionOut)
+def publish_global_lesson_version(
+    lesson_version_id: uuid.UUID,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> LessonVersionOut:
+    return publish_scoped_lesson_version(
+        db, lesson_version_id=lesson_version_id, organization_id=None, actor_user_id=admin.id
+    )
+
+
+@router.get("/admin/study-guides", response_model=list[StudyGuideOut])
+def list_global_study_guides(
+    course_id: uuid.UUID | None = Query(default=None),
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> list[StudyGuideOut]:
+    return list_scoped_study_guides(db, organization_id=None, course_id=course_id)
+
+
+@router.post("/admin/study-guides", response_model=StudyGuideOut, status_code=status.HTTP_201_CREATED)
+def create_global_study_guide(
+    payload: StudyGuideCreate,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> StudyGuideOut:
+    return create_scoped_study_guide(db, organization_id=None, actor_user_id=admin.id, payload=payload)
+
+
+@router.patch("/admin/study-guides/{guide_id}", response_model=StudyGuideOut)
+def update_global_study_guide(
+    guide_id: uuid.UUID,
+    payload: StudyGuideUpdate,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> StudyGuideOut:
+    return update_scoped_study_guide(db, guide_id=guide_id, organization_id=None, payload=payload)
+
+
+@router.delete("/admin/study-guides/{guide_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_global_study_guide(
+    guide_id: uuid.UUID,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    delete_scoped_study_guide(db, guide_id=guide_id, organization_id=None, actor_user_id=admin.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,4 +1,4 @@
-"""Endpoints de Asistente Pedagógico IA y administración de proveedores."""
+"""Endpoints de Asistente Pedagógico IA (Org + SuperAdmin) y administración de proveedores."""
 
 from __future__ import annotations
 
@@ -16,24 +16,41 @@ from app.modules.ai_assistant.schemas import (
     AIJobOut,
     AIProviderConfigOut,
     AIProviderUpdateRequest,
+    GenerateBlueprintRequest,
+    GenerateBlueprintResponse,
+    GenerateDynamicVisualRequest,
+    GenerateDynamicVisualResponse,
     GenerateLessonDraftRequest,
     GenerateLessonDraftResponse,
+    GenerateStrongExamRequest,
+    GenerateStudyGuideRequest,
+    GenerateStudyGuideResponse,
     SocraticHintRequest,
     SocraticHintResponse,
 )
-from app.modules.ai_assistant.service import generate_lesson_draft_challenges, generate_socratic_hint
+from app.modules.ai_assistant.service import (
+    generate_course_blueprint,
+    generate_dynamic_visual_with_ai,
+    generate_lesson_draft_challenges,
+    generate_socratic_hint,
+    generate_strong_exam_challenges,
+    generate_study_guide_with_ai,
+)
 from app.modules.audit.service import record_audit_log
 from app.modules.auth.models import User
 
 router = APIRouter(tags=["ai_assistant"])
 
 
+# ---------------------------------------------------------------------------
+# Endpoints IA Organizacionales (Educador / Coordinador / Instructor)
+# ---------------------------------------------------------------------------
 @router.post(
     "/orgs/{org_id}/ai/generate-lesson-draft",
     response_model=GenerateLessonDraftResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def generate_lesson_draft(
+def generate_org_lesson_draft(
     payload: GenerateLessonDraftRequest,
     tenant: TenantContext = Depends(require_permission("ai:generate")),
     db: Session = Depends(get_db),
@@ -45,6 +62,66 @@ def generate_lesson_draft(
         lesson_version_id=payload.lesson_version_id,
         competency_id=payload.competency_id,
         source_text=payload.source_text,
+    )
+
+
+@router.post(
+    "/orgs/{org_id}/ai/generate-blueprint",
+    response_model=GenerateBlueprintResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_org_blueprint(
+    payload: GenerateBlueprintRequest,
+    tenant: TenantContext = Depends(require_permission("ai:generate")),
+    db: Session = Depends(get_db),
+) -> GenerateBlueprintResponse:
+    return generate_course_blueprint(
+        db, organization_id=tenant.organization.id, user=tenant.user, payload=payload
+    )
+
+
+@router.post(
+    "/orgs/{org_id}/ai/generate-study-guide",
+    response_model=GenerateStudyGuideResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_org_study_guide(
+    payload: GenerateStudyGuideRequest,
+    tenant: TenantContext = Depends(require_permission("ai:generate")),
+    db: Session = Depends(get_db),
+) -> GenerateStudyGuideResponse:
+    return generate_study_guide_with_ai(
+        db, organization_id=tenant.organization.id, user=tenant.user, payload=payload
+    )
+
+
+@router.post(
+    "/orgs/{org_id}/ai/generate-strong-exam",
+    response_model=GenerateLessonDraftResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_org_strong_exam(
+    payload: GenerateStrongExamRequest,
+    tenant: TenantContext = Depends(require_permission("ai:generate")),
+    db: Session = Depends(get_db),
+) -> GenerateLessonDraftResponse:
+    return generate_strong_exam_challenges(
+        db, organization_id=tenant.organization.id, user=tenant.user, payload=payload
+    )
+
+
+@router.post(
+    "/orgs/{org_id}/ai/generate-dynamic-visual",
+    response_model=GenerateDynamicVisualResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_org_dynamic_visual(
+    payload: GenerateDynamicVisualRequest,
+    tenant: TenantContext = Depends(require_permission("ai:generate")),
+    db: Session = Depends(get_db),
+) -> GenerateDynamicVisualResponse:
+    return generate_dynamic_visual_with_ai(
+        db, organization_id=tenant.organization.id, user=tenant.user, payload=payload
     )
 
 
@@ -77,6 +154,110 @@ def list_org_ai_jobs(
     ]
 
 
+# ---------------------------------------------------------------------------
+# Endpoints IA Globales SuperAdmin (Catálogo Libre)
+# ---------------------------------------------------------------------------
+@router.post(
+    "/admin/ai/generate-lesson-draft",
+    response_model=GenerateLessonDraftResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_global_lesson_draft(
+    payload: GenerateLessonDraftRequest,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> GenerateLessonDraftResponse:
+    return generate_lesson_draft_challenges(
+        db,
+        organization_id=None,
+        user=admin,
+        lesson_version_id=payload.lesson_version_id,
+        competency_id=payload.competency_id,
+        source_text=payload.source_text,
+    )
+
+
+@router.post(
+    "/admin/ai/generate-blueprint",
+    response_model=GenerateBlueprintResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_global_blueprint(
+    payload: GenerateBlueprintRequest,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> GenerateBlueprintResponse:
+    return generate_course_blueprint(db, organization_id=None, user=admin, payload=payload)
+
+
+@router.post(
+    "/admin/ai/generate-study-guide",
+    response_model=GenerateStudyGuideResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_global_study_guide(
+    payload: GenerateStudyGuideRequest,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> GenerateStudyGuideResponse:
+    return generate_study_guide_with_ai(db, organization_id=None, user=admin, payload=payload)
+
+
+@router.post(
+    "/admin/ai/generate-strong-exam",
+    response_model=GenerateLessonDraftResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_global_strong_exam(
+    payload: GenerateStrongExamRequest,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> GenerateLessonDraftResponse:
+    return generate_strong_exam_challenges(db, organization_id=None, user=admin, payload=payload)
+
+
+@router.post(
+    "/admin/ai/generate-dynamic-visual",
+    response_model=GenerateDynamicVisualResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def generate_global_dynamic_visual(
+    payload: GenerateDynamicVisualRequest,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> GenerateDynamicVisualResponse:
+    return generate_dynamic_visual_with_ai(db, organization_id=None, user=admin, payload=payload)
+
+
+@router.get("/admin/ai/jobs", response_model=list[AIJobOut])
+def list_global_ai_jobs(
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> list[AIJobOut]:
+    jobs = db.scalars(
+        select(AIGenerationJob).order_by(AIGenerationJob.created_at.desc()).limit(50)
+    ).all()
+    return [
+        AIJobOut(
+            id=j.id,
+            organization_id=j.organization_id,
+            job_type=j.job_type,
+            provider=j.provider,
+            model_name=j.model_name,
+            status=j.status,
+            prompt_tokens=j.prompt_tokens,
+            completion_tokens=j.completion_tokens,
+            latency_ms=j.latency_ms,
+            error_code=j.error_code,
+            created_at=j.created_at,
+        )
+        for j in jobs
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Tutor Socrático y Administración de Proveedores
+# ---------------------------------------------------------------------------
 @router.post("/challenges/{challenge_id}/socratic-hint", response_model=SocraticHintResponse)
 def request_socratic_hint(
     challenge_id: uuid.UUID,

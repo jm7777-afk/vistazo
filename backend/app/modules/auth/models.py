@@ -17,6 +17,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("preferred_ui_profile IN ('kids', 'youth', 'pro')", name="ck_users_ui_profile"),
+        CheckConstraint("account_type IN ('student', 'educator')", name="ck_users_account_type"),
         CheckConstraint("daily_goal_minutes BETWEEN 3 AND 120", name="ck_users_daily_goal"),
         Index(
             "uq_users_email_active",
@@ -28,6 +29,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     full_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    account_type: Mapped[str] = mapped_column(String(20), default="student", nullable=False)
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_minor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     preferred_ui_profile: Mapped[str] = mapped_column(String(20), default="pro", nullable=False)

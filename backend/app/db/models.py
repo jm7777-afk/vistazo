@@ -5,7 +5,7 @@ from app.modules.audit.models import AuditLog
 from app.modules.auth.models import ParentalConsent, User, UserSession
 from app.modules.challenges.models import Challenge
 from app.modules.certificates.models import Certificate, CertificateRevocation, CertificateSignature
-from app.modules.courses.models import Course, Lesson, LessonVersion, Module
+from app.modules.courses.models import Course, Lesson, LessonVersion, Module, StudyGuide
 from app.modules.curriculum.models import (
     Classroom,
     ClassroomMember,
@@ -59,6 +59,7 @@ __all__ = [
     "StudentCompetency",
     "StudentGamificationProfile",
     "StudentLibraryItem",
+    "StudyGuide",
     "User",
     "UserSession",
     "XpTransaction",

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { GraduationCap, Presentation } from 'lucide-react';
 import { ErrorBanner, SuccessBanner } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
-import type { TokenResponse, UIProfile, UserSummary } from '../types/api';
+import type { AccountType, TokenResponse, UIProfile, UserSummary } from '../types/api';
 
 export function LoginPage() {
   const { loginSuccess } = useAppState();
@@ -90,6 +91,9 @@ export function LoginPage() {
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [accountType, setAccountType] = useState<AccountType>('student');
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [sectorType, setSectorType] = useState('specialized_training');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -101,7 +105,9 @@ export function RegisterPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const isMinorEstimate = Boolean(birthDate && new Date().getFullYear() - new Date(birthDate).getFullYear() < 14);
+  const isMinorEstimate =
+    accountType === 'student' &&
+    Boolean(birthDate && new Date().getFullYear() - new Date(birthDate).getFullYear() < 14);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,6 +122,9 @@ export function RegisterPage() {
             email,
             password,
             full_name: fullName,
+            account_type: accountType,
+            workspace_name: accountType === 'educator' && workspaceName.trim() ? workspaceName.trim() : null,
+            sector_type: sectorType,
             birth_date: birthDate || null,
             preferred_ui_profile: uiProfile,
             guardian_name: isMinorEstimate ? guardianName : null,
@@ -124,7 +133,11 @@ export function RegisterPage() {
         },
         false
       );
-      setSuccess('Cuenta creada correctamente. Ya puedes iniciar sesión.');
+      setSuccess(
+        accountType === 'educator'
+          ? 'Cuenta docente y espacio de autoría creados correctamente. Ya puedes iniciar sesión.'
+          : 'Cuenta creada correctamente. Ya puedes iniciar sesión.'
+      );
       setTimeout(() => navigate('/login'), 1200);
     } catch (err) {
       setError((err as Error).message);
@@ -134,7 +147,7 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="mx-auto max-w-md">
+    <div className="mx-auto max-w-lg">
       <div className="surface-card p-6">
         <img
           src="/brand/vistazo-logo.png"
@@ -142,7 +155,9 @@ export function RegisterPage() {
           className="mx-auto mb-4 h-12 w-auto object-contain"
         />
         <h1 className="text-xl font-bold">Crear cuenta</h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">Registro gratuito para estudio libre o instituciones.</p>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          Elige tu perfil inicial para preparar tu experiencia en Vistazo.
+        </p>
 
         {error && (
           <div className="mt-4">
@@ -155,7 +170,80 @@ export function RegisterPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div className="space-y-2">
+            <span className="block text-sm font-bold text-[var(--text-primary)]">
+              ¿Eres educador o estudiante?
+            </span>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setAccountType('student')}
+                className={`rounded-xl border p-3.5 text-left transition ${
+                  accountType === 'student'
+                    ? 'border-[var(--brand-primary)] bg-[var(--bg-accent-soft)] ring-2 ring-[var(--brand-primary)]/20'
+                    : 'border-[var(--border-subtle)] bg-white hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-sm text-[var(--brand-primary)]">
+                  <GraduationCap className="h-4 w-4" /> Soy Estudiante
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Aprende con micro-retos, repaso espaciado y certificados verificables.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountType('educator')}
+                className={`rounded-xl border p-3.5 text-left transition ${
+                  accountType === 'educator'
+                    ? 'border-[var(--brand-primary)] bg-[var(--bg-accent-soft)] ring-2 ring-[var(--brand-primary)]/20'
+                    : 'border-[var(--border-subtle)] bg-white hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-sm text-[var(--brand-primary)]">
+                  <Presentation className="h-4 w-4" /> Soy Educador
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Carga materias, nodos, temarios, guías, pruebas fuertes e imágenes dinámicas con IA o manual.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {accountType === 'educator' && (
+            <div className="space-y-3 rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--bg-accent-soft)]/50 p-3.5">
+              <p className="text-xs font-bold text-[var(--brand-primary)]">
+                Configuración de tu Espacio Docente (CRUD + Asistente IA)
+              </p>
+              <label className="block text-xs font-medium">
+                Nombre de tu academia, cátedra o espacio (opcional)
+                <input
+                  type="text"
+                  placeholder="Ej. Academia de Ciencias / Cátedra Prof. Vega"
+                  value={workspaceName}
+                  onChange={(e) => setWorkspaceName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-xs font-medium">
+                Área o nivel educativo principal
+                <select
+                  value={sectorType}
+                  onChange={(e) => setSectorType(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm"
+                >
+                  <option value="specialized_training">Formación Especializada</option>
+                  <option value="university">Universidad</option>
+                  <option value="high_school">Bachillerato</option>
+                  <option value="secondary_school">Educación Secundaria</option>
+                  <option value="primary_school">Educación Primaria</option>
+                  <option value="technical_academy">Academia Técnica</option>
+                  <option value="rescue_brigade">Brigada de Rescate</option>
+                </select>
+              </label>
+            </div>
+          )}
           <label className="block text-sm font-medium">
             Nombre completo
             <input

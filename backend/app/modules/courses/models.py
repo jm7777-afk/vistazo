@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.base import Base, JSONType, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class Course(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
@@ -75,12 +75,17 @@ class Module(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 
 class Lesson(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Lección lógica dentro de un módulo."""
+    """Lección lógica o evaluación fuerte dentro de un módulo."""
 
     __tablename__ = "lessons"
     __table_args__ = (
         CheckConstraint("order_index >= 0", name="ck_lesson_order"),
         CheckConstraint("estimated_minutes > 0 AND estimated_minutes <= 120", name="ck_lesson_minutes"),
+        CheckConstraint(
+            "lesson_type IN ('micro_lesson', 'strong_exam', 'study_guide_drill')",
+            name="ck_lesson_type",
+        ),
+        CheckConstraint("passing_score_pct BETWEEN 0 AND 100", name="ck_lesson_passing_score"),
     )
 
     module_id: Mapped[uuid.UUID] = mapped_column(
@@ -90,6 +95,8 @@ class Lesson(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(120), nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     estimated_minutes: Mapped[int] = mapped_column(SmallInteger, default=5, nullable=False)
+    lesson_type: Mapped[str] = mapped_column(String(30), default="micro_lesson", nullable=False)
+    passing_score_pct: Mapped[int] = mapped_column(SmallInteger, default=70, nullable=False)
     is_safety_critical: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -113,3 +120,34 @@ class LessonVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     requires_revalidation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     published_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class StudyGuide(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
+    """Guías de estudio, temarios, metodologías y pensum narrativos asociados a un curso o lección."""
+
+    __tablename__ = "study_guides"
+    __table_args__ = (
+        CheckConstraint(
+            "guide_type IN ('pensum', 'temario', 'guia_estudio', 'metodologia', 'rubrica')",
+            name="ck_study_guide_type",
+        ),
+        CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_study_guide_status"),
+        Index("idx_study_guides_course_status", "course_id", "status"),
+    )
+
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
+    course_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), nullable=True
+    )
+    lesson_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("lessons.id", ondelete="SET NULL"), nullable=True
+    )
+    guide_type: Mapped[str] = mapped_column(String(30), default="guia_estudio", nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    methodology_json: Mapped[dict] = mapped_column(JSONType, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    ai_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)

@@ -27,6 +27,12 @@ class CompetencyCreate(BaseModel):
     education_level: EducationLevel
 
 
+class CompetencyUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = None
+    education_level: EducationLevel | None = None
+
+
 class CompetencyOut(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID | None
@@ -43,6 +49,13 @@ class ProgramCreate(BaseModel):
     education_level: EducationLevel
 
 
+class ProgramUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = None
+    education_level: EducationLevel | None = None
+    is_active: bool | None = None
+
+
 class ProgramOut(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
@@ -56,6 +69,12 @@ class ProgramOut(BaseModel):
 class CurriculumVersionCreate(BaseModel):
     title: str = Field(min_length=2, max_length=200)
     passing_score: Decimal = Field(default=Decimal("70.00"), ge=0, le=100)
+
+
+class CurriculumVersionUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=200)
+    passing_score: Decimal | None = Field(default=None, ge=0, le=100)
+    status: Literal["draft", "published", "archived"] | None = None
 
 
 class CurriculumUnitCreate(BaseModel):
@@ -98,6 +117,13 @@ class ClassroomCreate(BaseModel):
     ends_at: date | None = None
     energy_enabled: bool = False
     max_energy: int = Field(default=5, ge=1, le=20)
+
+
+class ClassroomUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=180)
+    energy_enabled: bool | None = None
+    max_energy: int | None = Field(default=None, ge=1, le=20)
+    status: Literal["planned", "active", "closed", "archived"] | None = None
 
 
 class ClassroomOut(BaseModel):

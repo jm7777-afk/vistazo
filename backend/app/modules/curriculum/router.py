@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -29,15 +29,19 @@ from app.modules.curriculum.schemas import (
     ClassroomCreate,
     ClassroomOut,
     ClassroomStudentOut,
+    ClassroomUpdate,
     CompetencyCreate,
     CompetencyOut,
+    CompetencyUpdate,
     CurriculumUnitCreate,
     CurriculumUnitOut,
     CurriculumVersionCreate,
     CurriculumVersionOut,
+    CurriculumVersionUpdate,
     EnrollStudentRequest,
     ProgramCreate,
     ProgramOut,
+    ProgramUpdate,
 )
 from app.modules.progress.models import LessonProgress
 from app.modules.rbac.models import Role
@@ -146,6 +150,60 @@ def create_competency(
     )
 
 
+@router.patch("/competencies/{competency_id}", response_model=CompetencyOut)
+def update_competency(
+    competency_id: uuid.UUID,
+    payload: CompetencyUpdate,
+    tenant: TenantContext = Depends(require_permission("curriculum:manage")),
+    db: Session = Depends(get_db),
+) -> CompetencyOut:
+    comp = db.scalar(
+        select(Competency).where(
+            Competency.id == competency_id,
+            Competency.organization_id == tenant.organization.id,
+            Competency.deleted_at.is_(None),
+        )
+    )
+    if not comp:
+        raise NotFoundError("Competencia no encontrada en esta organización")
+    if payload.title is not None:
+        comp.title = payload.title.strip()
+    if payload.description is not None:
+        comp.description = payload.description
+    if payload.education_level is not None:
+        comp.education_level = payload.education_level
+    db.commit()
+    db.refresh(comp)
+    return CompetencyOut(
+        id=comp.id,
+        organization_id=comp.organization_id,
+        code=comp.code,
+        title=comp.title,
+        description=comp.description,
+        education_level=comp.education_level,
+    )
+
+
+@router.delete("/competencies/{competency_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_competency(
+    competency_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("curriculum:manage")),
+    db: Session = Depends(get_db),
+) -> Response:
+    comp = db.scalar(
+        select(Competency).where(
+            Competency.id == competency_id,
+            Competency.organization_id == tenant.organization.id,
+            Competency.deleted_at.is_(None),
+        )
+    )
+    if not comp:
+        raise NotFoundError("Competencia no encontrada en esta organización")
+    comp.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/programs", response_model=list[ProgramOut])
 def list_programs(
     tenant: TenantContext = Depends(get_tenant_context),
@@ -204,6 +262,64 @@ def create_program(
         education_level=prog.education_level,
         is_active=prog.is_active,
     )
+
+
+@router.patch("/programs/{program_id}", response_model=ProgramOut)
+def update_program(
+    program_id: uuid.UUID,
+    payload: ProgramUpdate,
+    tenant: TenantContext = Depends(require_permission("curriculum:manage")),
+    db: Session = Depends(get_db),
+) -> ProgramOut:
+    prog = db.scalar(
+        select(Program).where(
+            Program.id == program_id,
+            Program.organization_id == tenant.organization.id,
+            Program.deleted_at.is_(None),
+        )
+    )
+    if not prog:
+        raise NotFoundError("Programa no encontrado en esta organización")
+    if payload.title is not None:
+        prog.title = payload.title.strip()
+    if payload.description is not None:
+        prog.description = payload.description
+    if payload.education_level is not None:
+        prog.education_level = payload.education_level
+    if payload.is_active is not None:
+        prog.is_active = payload.is_active
+    db.commit()
+    db.refresh(prog)
+    return ProgramOut(
+        id=prog.id,
+        organization_id=prog.organization_id,
+        code=prog.code,
+        title=prog.title,
+        description=prog.description,
+        education_level=prog.education_level,
+        is_active=prog.is_active,
+    )
+
+
+@router.delete("/programs/{program_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_program(
+    program_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("curriculum:manage")),
+    db: Session = Depends(get_db),
+) -> Response:
+    prog = db.scalar(
+        select(Program).where(
+            Program.id == program_id,
+            Program.organization_id == tenant.organization.id,
+            Program.deleted_at.is_(None),
+        )
+    )
+    if not prog:
+        raise NotFoundError("Programa no encontrado en esta organización")
+    prog.deleted_at = datetime.now(timezone.utc)
+    prog.deleted_by = tenant.user.id
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/programs/{program_id}/curriculum-versions", response_model=list[CurriculumVersionOut])
@@ -351,6 +467,82 @@ def add_curriculum_unit(
         is_mandatory=unit.is_mandatory,
         weight=unit.weight,
     )
+
+
+@router.patch("/curriculum-versions/{cv_id}", response_model=CurriculumVersionOut)
+def update_curriculum_version(
+    cv_id: uuid.UUID,
+    payload: CurriculumVersionUpdate,
+    tenant: TenantContext = Depends(require_permission("curriculum:manage")),
+    db: Session = Depends(get_db),
+) -> CurriculumVersionOut:
+    cv = db.scalar(
+        select(CurriculumVersion).where(
+            CurriculumVersion.id == cv_id,
+            CurriculumVersion.organization_id == tenant.organization.id,
+        )
+    )
+    if not cv:
+        raise NotFoundError("Versión de pensum no encontrada")
+    if payload.title is not None:
+        cv.title = payload.title.strip()
+    if payload.passing_score is not None:
+        cv.passing_score = payload.passing_score
+    if payload.status is not None:
+        cv.status = payload.status
+    db.commit()
+    db.refresh(cv)
+    units = db.scalars(
+        select(CurriculumUnit)
+        .where(CurriculumUnit.curriculum_version_id == cv.id)
+        .order_by(CurriculumUnit.order_index)
+    ).all()
+    return CurriculumVersionOut(
+        id=cv.id,
+        program_id=cv.program_id,
+        version_number=cv.version_number,
+        title=cv.title,
+        passing_score=cv.passing_score,
+        status=cv.status,
+        published_at=cv.published_at,
+        units=[
+            CurriculumUnitOut(
+                id=u.id,
+                course_id=u.course_id,
+                primary_competency_id=u.primary_competency_id,
+                unit_code=u.unit_code,
+                title=u.title,
+                order_index=u.order_index,
+                is_mandatory=u.is_mandatory,
+                weight=u.weight,
+            )
+            for u in units
+        ],
+    )
+
+
+@router.delete("/curriculum-units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_curriculum_unit(
+    unit_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("curriculum:manage")),
+    db: Session = Depends(get_db),
+) -> Response:
+    row = db.execute(
+        select(CurriculumUnit, CurriculumVersion)
+        .join(CurriculumVersion, CurriculumUnit.curriculum_version_id == CurriculumVersion.id)
+        .where(
+            CurriculumUnit.id == unit_id,
+            CurriculumUnit.organization_id == tenant.organization.id,
+        )
+    ).first()
+    if not row:
+        raise NotFoundError("Unidad de pensum no encontrada")
+    unit, cv = row
+    if cv.status != "draft":
+        raise ValidationDomainError("Solo se pueden eliminar unidades de un pensum en borrador")
+    db.delete(unit)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/curriculum-versions/{cv_id}/publish", response_model=CurriculumVersionOut)
@@ -511,6 +703,51 @@ def create_classroom(
         max_energy=classroom.max_energy,
         status=classroom.status,
     )
+
+
+@router.patch("/classrooms/{classroom_id}", response_model=ClassroomOut)
+def update_classroom(
+    classroom_id: uuid.UUID,
+    payload: ClassroomUpdate,
+    tenant: TenantContext = Depends(require_permission("classroom:manage")),
+    db: Session = Depends(get_db),
+) -> ClassroomOut:
+    classroom = _ensure_classroom_access(db, tenant, classroom_id)
+    if payload.name is not None:
+        classroom.name = payload.name.strip()
+    if payload.energy_enabled is not None:
+        classroom.energy_enabled = payload.energy_enabled
+    if payload.max_energy is not None:
+        classroom.max_energy = payload.max_energy
+    if payload.status is not None:
+        classroom.status = payload.status
+    db.commit()
+    db.refresh(classroom)
+    return ClassroomOut(
+        id=classroom.id,
+        organization_id=classroom.organization_id,
+        curriculum_version_id=classroom.curriculum_version_id,
+        code=classroom.code,
+        name=classroom.name,
+        starts_at=classroom.starts_at,
+        ends_at=classroom.ends_at,
+        energy_enabled=classroom.energy_enabled,
+        max_energy=classroom.max_energy,
+        status=classroom.status,
+    )
+
+
+@router.delete("/classrooms/{classroom_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_classroom(
+    classroom_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("classroom:manage")),
+    db: Session = Depends(get_db),
+) -> Response:
+    classroom = _ensure_classroom_access(db, tenant, classroom_id)
+    classroom.deleted_at = datetime.now(timezone.utc)
+    classroom.deleted_by = tenant.user.id
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/classrooms/{classroom_id}/instructors", status_code=status.HTTP_201_CREATED)

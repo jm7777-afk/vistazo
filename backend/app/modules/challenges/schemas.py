@@ -1,4 +1,4 @@
-"""Esquemas Pydantic de creación y lectura segura de retos."""
+"""Esquemas Pydantic de creación, edición y lectura segura de retos."""
 
 from __future__ import annotations
 
@@ -30,6 +30,20 @@ class ChallengeCreate(BaseModel):
     points: int = Field(default=10, ge=1, le=500)
     estimated_seconds: int = Field(default=45, ge=5, le=600)
     is_safety_critical: bool = False
+
+
+class ChallengeUpdate(BaseModel):
+    competency_id: uuid.UUID | None = None
+    order_index: int | None = Field(default=None, ge=0)
+    prompt: str | None = Field(default=None, min_length=3, max_length=1000)
+    payload_json: dict | None = None
+    answer_key_json: dict | None = None
+    pedagogical_explanation: str | None = Field(default=None, min_length=5, max_length=2000)
+    difficulty: int | None = Field(default=None, ge=1, le=5)
+    points: int | None = Field(default=None, ge=1, le=500)
+    estimated_seconds: int | None = Field(default=None, ge=5, le=600)
+    is_safety_critical: bool | None = None
+    status: Literal["draft", "published", "archived"] | None = None
 
 
 class ChallengePublicOut(BaseModel):

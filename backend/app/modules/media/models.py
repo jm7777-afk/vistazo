@@ -50,6 +50,8 @@ class MediaAsset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     duration_seconds: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     processing_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    svg_markup: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dynamic_spec_json: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

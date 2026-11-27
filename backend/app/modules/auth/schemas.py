@@ -9,10 +9,24 @@ from typing import Literal
 from pydantic import BaseModel, EmailStr, Field
 
 
+AccountType = Literal["student", "educator"]
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=2, max_length=160)
+    account_type: AccountType = "student"
+    workspace_name: str | None = Field(default=None, max_length=160)
+    sector_type: Literal[
+        "primary_school",
+        "secondary_school",
+        "high_school",
+        "university",
+        "technical_academy",
+        "specialized_training",
+        "rescue_brigade",
+    ] = "specialized_training"
     birth_date: date | None = None
     preferred_ui_profile: Literal["kids", "youth", "pro"] = "pro"
     guardian_name: str | None = Field(default=None, max_length=160)
@@ -38,6 +52,7 @@ class UserSummary(BaseModel):
     id: uuid.UUID
     email: str
     full_name: str
+    account_type: str = "student"
     is_minor: bool
     preferred_ui_profile: str
     daily_goal_minutes: int = 5

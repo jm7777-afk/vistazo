@@ -1,6 +1,18 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { apiRequest, resolveAssetUrl } from '../../services/apiClient';
 import type { ChallengePublic } from '../../types/api';
+
+function useSignedMediaUrl(mediaId?: string | null) {
+  const query = useQuery({
+    queryKey: ['signed-media', mediaId],
+    queryFn: () => apiRequest<{ signed_url: string }>(`/media/${mediaId}/signed-url`),
+    enabled: Boolean(mediaId),
+    staleTime: 60_000,
+  });
+  return query.data ? resolveAssetUrl(query.data.signed_url) : null;
+}
 
 interface Props {
   challenge: ChallengePublic;
@@ -45,17 +57,26 @@ function ChallengeHeader({ challenge }: { challenge: ChallengePublic }) {
 function VisualConceptCardView({ challenge, disabled, onSubmit }: Props) {
   const payload = challenge.payload_json as {
     card_title: string;
+    visual_media_id?: string | null;
     visual_caption?: string;
     key_points: string[];
     check_question: { question: string; options: { id: string; text: string }[] };
   };
   const [selected, setSelected] = useState('');
+  const mediaUrl = useSignedMediaUrl(payload.visual_media_id);
 
   return (
     <div>
       <ChallengeHeader challenge={challenge} />
       <div className="mb-4 rounded-xl bg-[var(--bg-accent-soft)] p-4">
         <h3 className="text-base font-bold text-[var(--brand-primary)]">{payload.card_title}</h3>
+        {mediaUrl && (
+          <img
+            src={mediaUrl}
+            alt={payload.card_title}
+            className="my-3 max-h-60 w-full rounded-lg border border-[var(--border-subtle)] bg-white object-contain"
+          />
+        )}
         {payload.visual_caption && <p className="mt-1 text-sm text-[var(--text-secondary)]">{payload.visual_caption}</p>}
         <ul className="mt-3 space-y-1.5 text-sm">
           {payload.key_points.map((pt, i) => (
@@ -208,9 +229,11 @@ function SequenceOrderingView({ challenge, disabled, onSubmit }: Props) {
 function InteractiveZonesView({ challenge, disabled, onSubmit }: Props) {
   const payload = challenge.payload_json as {
     instruction: string;
+    diagram_media_id?: string | null;
     zones: { id: string; shape: 'circle' | 'rect'; x: number; y: number; r?: number; w?: number; h?: number; label: string }[];
   };
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const diagramUrl = useSignedMediaUrl(payload.diagram_media_id);
 
   return (
     <div>
@@ -219,11 +242,27 @@ function InteractiveZonesView({ challenge, disabled, onSubmit }: Props) {
       <p className="mb-4 text-xs text-[var(--text-secondary)]">{payload.instruction}</p>
 
       <div className="relative overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-slate-900/5">
-        <svg viewBox="0 0 100 56" className="w-full h-auto block" role="img" aria-label="Esquema anatómico interactivo">
-          {/* Silueta esquemática limpia de referencia */}
-          <circle cx="50" cy="14" r="10" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.8" />
-          <rect x="43" y="22" width="14" height="16" rx="4" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.8" />
-          <path d="M22 44 Q50 34 78 44 L82 55 L18 55 Z" fill="#cbd5e1" stroke="#64748b" strokeWidth="0.8" />
+        {diagramUrl && (
+          <img
+            src={diagramUrl}
+            alt="Diagrama dinámico del reto"
+            className="block w-full aspect-[16/9] object-contain bg-white"
+          />
+        )}
+        <svg
+          viewBox="0 0 100 56"
+          className={diagramUrl ? 'absolute inset-0 h-full w-full' : 'block h-auto w-full'}
+          role="img"
+          aria-label="Esquema interactivo"
+        >
+          {!diagramUrl && (
+            <>
+              {/* Silueta esquemática limpia de referencia */}
+              <circle cx="50" cy="14" r="10" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.8" />
+              <rect x="43" y="22" width="14" height="16" rx="4" fill="#e2e8f0" stroke="#64748b" strokeWidth="0.8" />
+              <path d="M22 44 Q50 34 78 44 L82 55 L18 55 Z" fill="#cbd5e1" stroke="#64748b" strokeWidth="0.8" />
+            </>
+          )}
 
           {payload.zones.map((z) => {
             const active = selectedZoneId === z.id;

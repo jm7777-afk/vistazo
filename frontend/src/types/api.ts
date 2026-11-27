@@ -1,4 +1,9 @@
 export type UIProfile = 'kids' | 'youth' | 'pro';
+export type AccountType = 'student' | 'educator';
+export type LessonType = 'micro_lesson' | 'strong_exam' | 'study_guide_drill';
+export type GuideType = 'pensum' | 'temario' | 'guia_estudio' | 'metodologia' | 'rubrica';
+export type PedagogyStyle = 'active_recall' | 'problem_based' | 'flipped_mastery' | 'spaced_microlearning';
+export type DiagramKind = 'auto' | 'cycle' | 'flowchart' | 'hierarchy' | 'comparison' | 'layers';
 
 export interface MembershipSummary {
   organization_id: string;
@@ -14,6 +19,7 @@ export interface UserSummary {
   id: string;
   email: string;
   full_name: string;
+  account_type?: AccountType;
   is_minor: boolean;
   preferred_ui_profile: UIProfile;
   daily_goal_minutes?: number;
@@ -49,9 +55,138 @@ export interface LessonOut {
   slug: string;
   order_index: number;
   estimated_minutes: number;
+  lesson_type?: LessonType;
+  passing_score_pct?: number;
   is_safety_critical: boolean;
   active_lesson_version_id: string | null;
   active_version_number: number | null;
+}
+
+export interface StudyGuideOut {
+  id: string;
+  organization_id: string | null;
+  course_id: string | null;
+  lesson_id: string | null;
+  guide_type: GuideType;
+  title: string;
+  content_markdown: string;
+  methodology_json: Record<string, unknown>;
+  status: 'draft' | 'published' | 'archived';
+  ai_generated: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaAssetOut {
+  id: string;
+  organization_id: string | null;
+  title: string;
+  description: string | null;
+  tags: string[];
+  education_level: string;
+  visibility: string;
+  media_format: string;
+  mime_type: string;
+  byte_size: number;
+  processing_status: string;
+  signed_url: string | null;
+  dynamic_spec_json?: Record<string, unknown> | null;
+  has_svg_markup?: boolean;
+}
+
+export interface GenerateBlueprintResponse {
+  job_id: string;
+  provider: string;
+  model_name: string;
+  status: string;
+  used_fallback: boolean;
+  blueprint: {
+    course_title: string;
+    course_description: string;
+    methodology: Record<string, unknown>;
+    study_guide_markdown: string;
+    modules: {
+      title: string;
+      description: string;
+      lessons: {
+        title: string;
+        lesson_type: LessonType;
+        estimated_minutes: number;
+        passing_score_pct: number;
+        is_safety_critical: boolean;
+        key_concepts: string[];
+      }[];
+    }[];
+  };
+  created_course_id: string | null;
+  created_guide_id: string | null;
+}
+
+export interface GenerateStudyGuideResponse {
+  job_id: string;
+  provider: string;
+  model_name: string;
+  status: string;
+  used_fallback: boolean;
+  title: string;
+  content_markdown: string;
+  methodology_json: Record<string, unknown>;
+  saved_guide_id: string | null;
+}
+
+export interface GenerateDynamicVisualResponse {
+  job_id: string;
+  provider: string;
+  model_name: string;
+  status: string;
+  used_fallback: boolean;
+  media_asset_id: string;
+  signed_url: string;
+  title: string;
+  template: string;
+  zones: Record<string, unknown>[];
+  created_challenge_id: string | null;
+}
+
+export interface ProgramOut {
+  id: string;
+  organization_id: string;
+  code: string;
+  title: string;
+  description: string | null;
+  education_level: string;
+  is_active: boolean;
+}
+
+export interface CurriculumUnitOut {
+  id: string;
+  course_id: string;
+  primary_competency_id: string | null;
+  unit_code: string;
+  title: string;
+  order_index: number;
+  is_mandatory: boolean;
+  weight: string;
+}
+
+export interface CurriculumVersionOut {
+  id: string;
+  program_id: string;
+  version_number: number;
+  title: string;
+  passing_score: string;
+  status: 'draft' | 'published' | 'archived';
+  published_at: string | null;
+  units: CurriculumUnitOut[];
+}
+
+export interface CompetencyOut {
+  id: string;
+  organization_id: string | null;
+  code: string;
+  title: string;
+  description: string | null;
+  education_level: string;
 }
 
 export interface ModuleOut {
