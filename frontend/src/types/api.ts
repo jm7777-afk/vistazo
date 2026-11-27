@@ -16,6 +16,8 @@ export interface UserSummary {
   full_name: string;
   is_minor: boolean;
   preferred_ui_profile: UIProfile;
+  daily_goal_minutes?: number;
+  onboarding_completed?: boolean;
   is_super_admin: boolean;
   created_at: string;
   memberships: MembershipSummary[];
@@ -275,6 +277,33 @@ export interface OrgAnalyticsOverview {
   revoked_certificates: number;
   ai_jobs_count: number;
   cohorts: CohortComparisonItem[];
+}
+
+export interface LessonVersionOut {
+  id: string;
+  lesson_id: string;
+  version_number: number;
+  summary: string | null;
+  status: 'draft' | 'published' | 'superseded';
+  requires_revalidation: boolean;
+  published_at: string | null;
+}
+
+export interface ChallengeAuthorOut extends ChallengePublic {
+  answer_key_json: Record<string, unknown>;
+  pedagogical_explanation: string;
+}
+
+export interface AuditLogOut {
+  id: string;
+  organization_id: string | null;
+  actor_user_id: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  outcome: 'success' | 'denied' | 'error';
+  details_json: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface ClassroomOut {

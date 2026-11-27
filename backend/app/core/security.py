@@ -14,13 +14,17 @@ from app.core.config import get_settings
 
 
 def hash_password(plain_password: str) -> str:
-    """Genera un hash seguro usando bcrypt (o Argon2id cuando está instalado)."""
+    """Genera un hash seguro usando Argon2id (o bcrypt como respaldo)."""
+    settings = get_settings()
     try:
         from argon2 import PasswordHasher  # type: ignore
 
+        if settings.testing:
+            return PasswordHasher(time_cost=1, memory_cost=1024, parallelism=1).hash(plain_password)
         return PasswordHasher().hash(plain_password)
     except ImportError:
-        salt = bcrypt.gensalt(rounds=12)
+        rounds = 4 if settings.testing else 12
+        salt = bcrypt.gensalt(rounds=rounds)
         return bcrypt.hashpw(plain_password.encode("utf-8"), salt).decode("utf-8")
 
 

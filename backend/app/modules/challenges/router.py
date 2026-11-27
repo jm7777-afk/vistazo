@@ -88,6 +88,57 @@ def create_challenge(
     )
 
 
+@router.get(
+    "/orgs/{org_id}/lesson-versions/{lesson_version_id}/challenges",
+    response_model=list[ChallengeAuthorOut],
+)
+def list_lesson_challenges_for_author(
+    lesson_version_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> list[ChallengeAuthorOut]:
+    """Lista retos (incluidos borradores) para revisión y aprobación del instructor."""
+    row = db.execute(
+        select(LessonVersion, Course)
+        .join(Lesson, LessonVersion.lesson_id == Lesson.id)
+        .join(Module, Lesson.module_id == Module.id)
+        .join(Course, Module.course_id == Course.id)
+        .where(
+            LessonVersion.id == lesson_version_id,
+            Course.organization_id == tenant.organization.id,
+            Course.deleted_at.is_(None),
+        )
+    ).first()
+    if not row:
+        raise NotFoundError("Versión de lección no encontrada en esta organización")
+
+    challenges = db.scalars(
+        select(Challenge)
+        .where(Challenge.lesson_version_id == lesson_version_id, Challenge.deleted_at.is_(None))
+        .order_by(Challenge.order_index)
+    ).all()
+    return [
+        ChallengeAuthorOut(
+            id=ch.id,
+            lesson_version_id=ch.lesson_version_id,
+            competency_id=ch.competency_id,
+            challenge_type=ch.challenge_type,
+            schema_version=ch.schema_version,
+            order_index=ch.order_index,
+            prompt=ch.prompt,
+            payload_json=ch.payload_json,
+            answer_key_json=ch.answer_key_json,
+            pedagogical_explanation=ch.pedagogical_explanation,
+            difficulty=ch.difficulty,
+            points=ch.points,
+            estimated_seconds=ch.estimated_seconds,
+            is_safety_critical=ch.is_safety_critical,
+            status=ch.status,
+        )
+        for ch in challenges
+    ]
+
+
 @router.get("/lesson-versions/{lesson_version_id}/challenges", response_model=list[ChallengePublicOut])
 def list_lesson_challenges_for_player(
     lesson_version_id: uuid.UUID,

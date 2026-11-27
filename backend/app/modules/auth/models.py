@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, String, Text, Uuid, func, text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, SmallInteger, String, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
@@ -17,6 +17,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("preferred_ui_profile IN ('kids', 'youth', 'pro')", name="ck_users_ui_profile"),
+        CheckConstraint("daily_goal_minutes BETWEEN 3 AND 120", name="ck_users_daily_goal"),
         Index(
             "uq_users_email_active",
             func.lower("email"),  # fallback overridden below if needed
@@ -30,6 +31,8 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_minor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     preferred_ui_profile: Mapped[str] = mapped_column(String(20), default="pro", nullable=False)
+    daily_goal_minutes: Mapped[int] = mapped_column(SmallInteger, default=5, nullable=False)
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_super_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

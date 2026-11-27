@@ -72,6 +72,8 @@ def build_user_summary(db: Session, user: User) -> UserSummary:
         full_name=user.full_name,
         is_minor=user.is_minor,
         preferred_ui_profile=user.preferred_ui_profile,
+        daily_goal_minutes=user.daily_goal_minutes,
+        onboarding_completed=user.onboarding_completed,
         is_super_admin=user.is_super_admin,
         created_at=user.created_at,
         memberships=memberships,

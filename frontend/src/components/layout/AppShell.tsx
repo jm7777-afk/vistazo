@@ -1,11 +1,49 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Award, BookOpen, Brain, Compass, Layers, LayoutDashboard, LogOut, Shield, UserCircle2, Users } from 'lucide-react';
+import { Award, BookOpen, Brain, Compass, Layers, LayoutDashboard, LogOut, Shield, UserCircle2, Users, WifiOff } from 'lucide-react';
+import { flushOfflineAttempts, listOfflineAttempts } from '../../pwa/offlineQueue';
+import { apiRequest } from '../../services/apiClient';
 import { useAppState } from '../../stores/AppContext';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, activeOrg, setActiveOrgId, uiProfile, logout } = useAppState();
   const location = useLocation();
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  useEffect(() => {
+    const syncNow = async () => {
+      const queued = await listOfflineAttempts();
+      setPendingSyncCount(queued.length);
+      if (navigator.onLine && queued.length > 0 && user) {
+        await flushOfflineAttempts((item) =>
+          apiRequest(`/challenges/${item.challenge_id}/attempt`, {
+            method: 'POST',
+            body: JSON.stringify({
+              client_attempt_id: item.client_attempt_id,
+              classroom_id: item.classroom_id,
+              submitted_answer: item.submitted_answer,
+              response_time_ms: item.response_time_ms,
+            }),
+          })
+        );
+        const remaining = await listOfflineAttempts();
+        setPendingSyncCount(remaining.length);
+      }
+    };
+    void syncNow();
+    const onOnline = () => {
+      setIsOffline(false);
+      void syncNow();
+    };
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [user]);
 
   const navItems = [
     { to: '/catalog', label: 'Catálogo Libre', icon: Compass, show: true },
@@ -33,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <Link to="/catalog" className="flex items-center gap-2 font-bold tracking-tight text-[var(--brand-primary)]">
+          <Link to="/" className="flex items-center gap-2 font-bold tracking-tight text-[var(--brand-primary)]">
             <img
               src="/brand/vistazo-icon.png"
               alt="Vistazo"
@@ -105,7 +143,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:pb-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 md:pb-8">
+        {(isOffline || pendingSyncCount > 0) && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-950">
+            <span className="flex items-center gap-2">
+              <WifiOff className="h-4 w-4" />
+              {isOffline ? 'Modo sin conexión activo.' : 'Conexión restablecida.'}
+            </span>
+            {pendingSyncCount > 0 && <span>{pendingSyncCount} intentos en cola para sincronizar</span>}
+          </div>
+        )}
+        {children}
+      </main>
 
       <nav
         className="fixed bottom-0 left-0 right-0 z-20 flex justify-around border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] py-2 md:hidden"

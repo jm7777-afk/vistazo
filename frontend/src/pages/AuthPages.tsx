@@ -24,7 +24,7 @@ export function LoginPage() {
         false
       );
       loginSuccess(resp);
-      navigate('/dashboard');
+      navigate(resp.user.onboarding_completed === false ? '/onboarding' : '/dashboard');
     } catch (err) {
       setError((err as Error).message);
     } finally {

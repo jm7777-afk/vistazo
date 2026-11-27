@@ -6,6 +6,8 @@ import os
 from collections.abc import Generator
 from pathlib import Path
 
+os.environ.setdefault("TESTING", "1")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker

@@ -80,6 +80,15 @@ class Settings:
     ai_max_tokens: int = field(default_factory=lambda: int(os.getenv("AI_MAX_TOKENS", "2500")))
     ai_daily_org_job_limit: int = field(default_factory=lambda: int(os.getenv("AI_DAILY_ORG_JOB_LIMIT", "50")))
     redis_url: str | None = field(default_factory=lambda: os.getenv("REDIS_URL") or None)
+    frontend_url: str = field(
+        default_factory=lambda: os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip("/")
+    )
+    run_demo_seed: bool = field(
+        default_factory=lambda: _parse_bool(os.getenv("RUN_DEMO_SEED"), default=True)
+    )
+    testing: bool = field(
+        default_factory=lambda: _parse_bool(os.getenv("TESTING"), default=False)
+    )
 
 
 @lru_cache(maxsize=1)

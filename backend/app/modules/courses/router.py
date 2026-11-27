@@ -307,6 +307,45 @@ def create_lesson(
     )
 
 
+@router.get("/orgs/{org_id}/lessons/{lesson_id}/versions", response_model=list[LessonVersionOut])
+def list_lesson_versions(
+    lesson_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> list[LessonVersionOut]:
+    row = db.execute(
+        select(Lesson, Course)
+        .join(Module, Lesson.module_id == Module.id)
+        .join(Course, Module.course_id == Course.id)
+        .where(
+            Lesson.id == lesson_id,
+            Lesson.deleted_at.is_(None),
+            Course.organization_id == tenant.organization.id,
+            Course.deleted_at.is_(None),
+        )
+    ).first()
+    if not row:
+        raise NotFoundError("Lección no encontrada en esta organización")
+
+    versions = db.scalars(
+        select(LessonVersion)
+        .where(LessonVersion.lesson_id == lesson_id)
+        .order_by(LessonVersion.version_number.desc())
+    ).all()
+    return [
+        LessonVersionOut(
+            id=lv.id,
+            lesson_id=lv.lesson_id,
+            version_number=lv.version_number,
+            summary=lv.summary,
+            status=lv.status,
+            requires_revalidation=lv.requires_revalidation,
+            published_at=lv.published_at,
+        )
+        for lv in versions
+    ]
+
+
 @router.post("/orgs/{org_id}/lessons/{lesson_id}/versions", response_model=LessonVersionOut, status_code=status.HTTP_201_CREATED)
 def create_lesson_version(
     lesson_id: uuid.UUID,

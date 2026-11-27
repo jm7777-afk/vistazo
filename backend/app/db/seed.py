@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.modules.ai_assistant.models import AIProviderConfig
@@ -81,6 +82,18 @@ def seed_database(db: Session) -> None:
         for p_code in perm_codes:
             db.add(RolePermission(role_id=role.id, permission_id=perm_map[p_code].id))
 
+    settings = get_settings()
+    if settings.environment == "production" and not settings.run_demo_seed:
+        db.add_all(
+            [
+                AIProviderConfig(provider="fallback", model_name="deterministic-pedagogical-v1", is_active=True, max_tokens=2500, daily_org_job_limit=50),
+                AIProviderConfig(provider="gemini", model_name="gemini-2.0-flash", is_active=False, max_tokens=2500, daily_org_job_limit=50),
+                AIProviderConfig(provider="groq", model_name="llama-3.3-70b-versatile", is_active=False, max_tokens=2500, daily_org_job_limit=50),
+            ]
+        )
+        db.commit()
+        return
+
     # Usuarios demo con credenciales conocidas para desarrollo/piloto
     superadmin = User(
         email="superadmin@vistazo.org",
@@ -88,24 +101,28 @@ def seed_database(db: Session) -> None:
         full_name="Super Administrador Vistazo",
         is_super_admin=True,
         preferred_ui_profile="pro",
+        onboarding_completed=True,
     )
     coordinator = User(
         email="coord@brigada-alfa.org",
         password_hash=hash_password("BrigadaCoord2026!"),
         full_name="Comandante Elena Rojas",
         preferred_ui_profile="pro",
+        onboarding_completed=True,
     )
     instructor = User(
         email="instructor@brigada-alfa.org",
         password_hash=hash_password("BrigadaInst2026!"),
         full_name="Instructor Marcos Vega",
         preferred_ui_profile="pro",
+        onboarding_completed=True,
     )
     student = User(
         email="cadete@brigada-alfa.org",
         password_hash=hash_password("BrigadaCadete2026!"),
         full_name="Cadete Lucía Méndez",
         preferred_ui_profile="pro",
+        onboarding_completed=True,
     )
     db.add_all([superadmin, coordinator, instructor, student])
     db.flush()

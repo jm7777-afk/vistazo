@@ -6,13 +6,16 @@ import { useAppState } from '../stores/AppContext';
 import type {
   AIJobOut,
   AIProviderConfigOut,
+  AuditLogOut,
   CertificateOut,
+  ChallengeAuthorOut,
   ClassroomAnalytics,
   ClassroomOut,
   ClassroomStudentOut,
   CourseDetail,
   CourseSummary,
   GenerateLessonDraftResponse,
+  LessonVersionOut,
   OrgAnalyticsOverview,
   UIProfile,
 } from '../types/api';
@@ -176,6 +179,30 @@ function InstructorAIGenerator({ orgId }: { orgId: string }) {
   const lessons = (courseDetailQuery.data?.modules ?? []).flatMap((m) => m.lessons);
   const targetLessonId = selectedLessonId || lessons[0]?.id || '';
 
+  const versionsQuery = useQuery({
+    queryKey: ['lesson-versions-author', orgId, targetLessonId],
+    queryFn: () => apiRequest<LessonVersionOut[]>(`/orgs/${orgId}/lessons/${targetLessonId}/versions`),
+    enabled: Boolean(targetLessonId),
+  });
+
+  const draftVersion = versionsQuery.data?.find((v) => v.status === 'draft');
+
+  const draftChallengesQuery = useQuery({
+    queryKey: ['draft-challenges-author', orgId, draftVersion?.id],
+    queryFn: () =>
+      apiRequest<ChallengeAuthorOut[]>(`/orgs/${orgId}/lesson-versions/${draftVersion!.id}/challenges`),
+    enabled: Boolean(draftVersion?.id),
+  });
+
+  const publishVersionMutation = useMutation({
+    mutationFn: (lvId: string) =>
+      apiRequest<LessonVersionOut>(`/orgs/${orgId}/lesson-versions/${lvId}/publish`, { method: 'POST' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['lesson-versions-author', orgId, targetLessonId] });
+      void queryClient.invalidateQueries({ queryKey: ['course-detail-ai', firstCourseId] });
+    },
+  });
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       const lv = await apiRequest<{ id: string }>(`/orgs/${orgId}/lessons/${targetLessonId}/versions`, {
@@ -191,6 +218,7 @@ function InstructorAIGenerator({ orgId }: { orgId: string }) {
       setDraftResult(res);
       setSourceText('');
       void queryClient.invalidateQueries({ queryKey: ['org-ai-jobs', orgId] });
+      void queryClient.invalidateQueries({ queryKey: ['lesson-versions-author', orgId, targetLessonId] });
     },
   });
 
@@ -246,6 +274,36 @@ function InstructorAIGenerator({ orgId }: { orgId: string }) {
             {generateMutation.isPending ? 'Generando borrador...' : 'Generar borrador IA (5–8 retos)'}
           </button>
         </form>
+      )}
+
+      {draftVersion && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold text-amber-950">
+                Borrador pendiente: Versión v{draftVersion.version_number}
+              </p>
+              <p className="text-xs text-amber-800">{draftVersion.summary}</p>
+            </div>
+            <button
+              type="button"
+              disabled={publishVersionMutation.isPending || !(draftChallengesQuery.data?.length)}
+              onClick={() => publishVersionMutation.mutate(draftVersion.id)}
+              className="btn-primary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+            >
+              {publishVersionMutation.isPending ? 'Publicando...' : 'Aprobar y publicar versión'}
+            </button>
+          </div>
+          {draftChallengesQuery.data && draftChallengesQuery.data.length > 0 && (
+            <ul className="space-y-1 text-xs text-amber-950">
+              {draftChallengesQuery.data.map((ch) => (
+                <li key={ch.id} className="rounded bg-white/80 px-2.5 py-1.5">
+                  <strong>[{ch.challenge_type}]</strong> {ch.prompt}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {jobsQuery.data && jobsQuery.data.length > 0 && (
@@ -351,8 +409,170 @@ export function CoordinatorPage() {
       )}
 
       <CoordinatorOverviewPanel orgId={activeOrg.organization_id} />
+      <CoordinatorClassroomsPanel orgId={activeOrg.organization_id} programId={programsQuery.data?.[0]?.id} />
       <CoordinatorCertificatesPanel orgId={activeOrg.organization_id} programId={programsQuery.data?.[0]?.id} />
+      <AuditLogsPanel endpoint={`/orgs/${activeOrg.organization_id}/audit-logs`} title="Auditoría de la Organización" />
     </div>
+  );
+}
+
+function CoordinatorClassroomsPanel({ orgId, programId }: { orgId: string; programId?: string }) {
+  const queryClient = useQueryClient();
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [enrollEmail, setEnrollEmail] = useState('');
+  const [selectedClassroom, setSelectedClassroom] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const cvsQuery = useQuery({
+    queryKey: ['org-cvs-manage', orgId, programId],
+    queryFn: () =>
+      apiRequest<{ id: string; title: string; status: string }[]>(
+        `/orgs/${orgId}/programs/${programId}/curriculum-versions`
+      ),
+    enabled: Boolean(programId),
+  });
+  const classroomsQuery = useQuery({
+    queryKey: ['coord-classrooms', orgId],
+    queryFn: () => apiRequest<ClassroomOut[]>(`/orgs/${orgId}/classrooms`),
+  });
+
+  const publishedCvId = cvsQuery.data?.find((c) => c.status === 'published')?.id ?? '';
+  const targetClassroom = selectedClassroom || classroomsQuery.data?.[0]?.id || '';
+
+  const createClassroom = useMutation({
+    mutationFn: () =>
+      apiRequest<ClassroomOut>(`/orgs/${orgId}/classrooms`, {
+        method: 'POST',
+        body: JSON.stringify({
+          curriculum_version_id: publishedCvId,
+          code,
+          name,
+          energy_enabled: false,
+        }),
+      }),
+    onSuccess: () => {
+      setCode('');
+      setName('');
+      setMsg('Aula creada correctamente.');
+      void queryClient.invalidateQueries({ queryKey: ['coord-classrooms', orgId] });
+    },
+  });
+
+  const enrollStudent = useMutation({
+    mutationFn: () =>
+      apiRequest<{ status: string }>(`/orgs/${orgId}/classrooms/${targetClassroom}/enroll`, {
+        method: 'POST',
+        body: JSON.stringify({ student_email: enrollEmail }),
+      }),
+    onSuccess: () => {
+      setEnrollEmail('');
+      setMsg('Estudiante matriculado en el aula.');
+    },
+  });
+
+  return (
+    <section className="surface-card p-5 space-y-4">
+      <h2 className="text-base font-bold">Gestión de Aulas y Matrículas</h2>
+      {msg && <SuccessBanner message={msg} />}
+      {(createClassroom.error || enrollStudent.error) && (
+        <ErrorBanner message={((createClassroom.error || enrollStudent.error) as Error).message} />
+      )}
+      {publishedCvId && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createClassroom.mutate();
+          }}
+          className="grid gap-3 sm:grid-cols-3"
+        >
+          <input
+            required
+            placeholder="Código aula (ej. COH-2026-B)"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+          />
+          <input
+            required
+            placeholder="Nombre del aula"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+          />
+          <button type="submit" disabled={createClassroom.isPending} className="btn-primary px-4 py-2 text-xs font-semibold">
+            Crear aula
+          </button>
+        </form>
+      )}
+      {classroomsQuery.data && classroomsQuery.data.length > 0 && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            enrollStudent.mutate();
+          }}
+          className="grid gap-3 sm:grid-cols-3"
+        >
+          <select
+            value={targetClassroom}
+            onChange={(e) => setSelectedClassroom(e.target.value)}
+            className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm"
+          >
+            {classroomsQuery.data.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.code})
+              </option>
+            ))}
+          </select>
+          <input
+            type="email"
+            required
+            placeholder="correo@estudiante.org"
+            value={enrollEmail}
+            onChange={(e) => setEnrollEmail(e.target.value)}
+            className="rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
+          />
+          <button type="submit" disabled={enrollStudent.isPending} className="btn-primary px-4 py-2 text-xs font-semibold">
+            Matricular estudiante
+          </button>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function AuditLogsPanel({ endpoint, title }: { endpoint: string; title: string }) {
+  const logsQuery = useQuery({
+    queryKey: ['audit-logs', endpoint],
+    queryFn: () => apiRequest<AuditLogOut[]>(endpoint),
+  });
+
+  return (
+    <section className="surface-card p-5 space-y-3">
+      <h2 className="text-base font-bold">{title}</h2>
+      {logsQuery.isLoading ? (
+        <LoadingState label="Cargando bitácora..." />
+      ) : !logsQuery.data?.length ? (
+        <p className="text-xs text-[var(--text-secondary)]">Sin eventos registrados aún.</p>
+      ) : (
+        <ul className="space-y-1.5 text-xs">
+          {logsQuery.data.slice(0, 12).map((log) => (
+            <li key={log.id} className="flex flex-wrap items-center justify-between gap-2 rounded bg-slate-50 px-3 py-2">
+              <span>
+                <strong>{log.action}</strong> • {log.resource_type}
+              </span>
+              <span
+                className={`rounded px-2 py-0.5 font-semibold ${
+                  log.outcome === 'denied' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {log.outcome}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -652,6 +872,7 @@ export function SuperAdminPage() {
       )}
 
       <AdminAIProvidersPanel />
+      <AuditLogsPanel endpoint="/admin/audit-logs" title="Auditoría Global de Plataforma" />
     </div>
   );
 }

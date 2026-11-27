@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.challenges.schemas import ChallengeType
 
@@ -36,6 +36,8 @@ class GenerateLessonDraftRequest(BaseModel):
 
 
 class GenerateLessonDraftResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     job_id: uuid.UUID
     provider: str
     model_name: str
@@ -51,6 +53,8 @@ class SocraticHintRequest(BaseModel):
 
 
 class SocraticHintResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     job_id: uuid.UUID
     hint: str
     provider: str
@@ -61,6 +65,8 @@ class SocraticHintResponse(BaseModel):
 
 
 class AIProviderConfigOut(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     id: uuid.UUID
     provider: str
     model_name: str
@@ -71,6 +77,8 @@ class AIProviderConfigOut(BaseModel):
 
 
 class AIProviderUpdateRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     provider: Literal["gemini", "groq", "fallback"]
     model_name: str = Field(min_length=2, max_length=80)
     max_tokens: int = Field(default=2500, ge=256, le=8192)
@@ -78,6 +86,8 @@ class AIProviderUpdateRequest(BaseModel):
 
 
 class AIJobOut(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     id: uuid.UUID
     organization_id: uuid.UUID | None
     job_type: str

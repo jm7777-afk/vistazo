@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.deps import TenantContext, get_current_user, require_permission
+from app.core.config import get_settings
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.db.session import get_db, get_session_factory
 from app.modules.auth.models import User
@@ -22,6 +23,7 @@ from app.modules.certificates.schemas import (
 )
 from app.modules.certificates.service import (
     check_verify_rate_limit,
+    generate_certificate_pdf_bytes,
     get_certificates_storage_root,
     issue_certificate,
     revoke_certificate,
@@ -145,11 +147,30 @@ def download_certificate_pdf(
         raise NotFoundError("El PDF aún está en generación asíncrona")
 
     pdf_path = get_certificates_storage_root() / cert.pdf_storage_key
-    if not pdf_path.exists():
-        raise NotFoundError("Archivo PDF no disponible")
+    if pdf_path.exists():
+        pdf_bytes = pdf_path.read_bytes()
+    else:
+        # Regeneración automática si el almacenamiento efímero se reinició (ej. Render)
+        snap = cert.metadata_snapshot_json
+        verify_url = f"{get_settings().frontend_url}/verificar-certificado/{cert.verification_hash}"
+        pdf_bytes = generate_certificate_pdf_bytes(
+            organization_name=snap["organization_name"],
+            recipient_name=snap["recipient_name"],
+            program_title=snap["program_title"],
+            curriculum_title=snap["curriculum_title"],
+            certificate_number=cert.certificate_number,
+            verification_hash=cert.verification_hash,
+            final_grade=cert.final_grade,
+            issued_at=cert.issued_at or cert.created_at,
+            signer_name=snap["signer_name"],
+            signer_title=snap["signer_title"],
+            verification_url=verify_url,
+        )
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        pdf_path.write_bytes(pdf_bytes)
 
     return Response(
-        content=pdf_path.read_bytes(),
+        content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{cert.certificate_number}.pdf"'},
     )

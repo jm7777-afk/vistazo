@@ -342,7 +342,7 @@ def render_certificate_pdf_job(certificate_id: uuid.UUID, session_factory: sessi
             return
 
         snap = cert.metadata_snapshot_json
-        verify_url = f"/verificar-certificado/{cert.verification_hash}"
+        verify_url = f"{get_settings().frontend_url}/verificar-certificado/{cert.verification_hash}"
         pdf_bytes = generate_certificate_pdf_bytes(
             organization_name=snap["organization_name"],
             recipient_name=snap["recipient_name"],

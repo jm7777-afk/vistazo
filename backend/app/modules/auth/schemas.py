@@ -40,9 +40,17 @@ class UserSummary(BaseModel):
     full_name: str
     is_minor: bool
     preferred_ui_profile: str
+    daily_goal_minutes: int = 5
+    onboarding_completed: bool = False
     is_super_admin: bool
     created_at: datetime
     memberships: list[MembershipSummary] = Field(default_factory=list)
+
+
+class UpdatePreferencesRequest(BaseModel):
+    preferred_ui_profile: Literal["kids", "youth", "pro"] | None = None
+    daily_goal_minutes: int | None = Field(default=None, ge=3, le=120)
+    onboarding_completed: bool | None = None
 
 
 class TokenResponse(BaseModel):

@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { apiRequest, setSessionTokens } from '../services/apiClient';
+import { apiRequest, restoreSessionOnBoot, setSessionTokens } from '../services/apiClient';
 import type { MembershipSummary, TokenResponse, UIProfile, UserSummary } from '../types/api';
 
 interface AppContextValue {
   user: UserSummary | null;
   activeOrg: MembershipSummary | null;
   uiProfile: UIProfile;
+  isBootstrapping: boolean;
   setActiveOrgId: (orgId: string | null) => void;
   setUiProfile: (profile: UIProfile) => void;
+  updateUser: (user: UserSummary) => void;
   loginSuccess: (resp: TokenResponse) => void;
   logout: () => Promise<void>;
 }
@@ -18,6 +20,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSummary | null>(null);
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
   const [uiProfile, setUiProfile] = useState<UIProfile>('pro');
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   const activeOrg = user?.memberships.find((m) => m.organization_id === activeOrgId) ?? null;
 
@@ -25,12 +28,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute('data-theme-profile', uiProfile);
   }, [uiProfile]);
 
+  const applyAuthenticatedUser = (u: UserSummary) => {
+    setUser(u);
+    const firstOrg = u.memberships[0] ?? null;
+    setActiveOrgId(firstOrg ? firstOrg.organization_id : null);
+    setUiProfile(firstOrg ? firstOrg.default_ui_profile : u.preferred_ui_profile);
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      const restored = await restoreSessionOnBoot();
+      if (mounted && restored) {
+        applyAuthenticatedUser(restored.user);
+      }
+      if (mounted) setIsBootstrapping(false);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const loginSuccess = (resp: TokenResponse) => {
     setSessionTokens(resp.access_token, resp.csrf_token);
-    setUser(resp.user);
-    const firstOrg = resp.user.memberships[0] ?? null;
-    setActiveOrgId(firstOrg ? firstOrg.organization_id : null);
-    setUiProfile(firstOrg ? firstOrg.default_ui_profile : resp.user.preferred_ui_profile);
+    applyAuthenticatedUser(resp.user);
   };
 
   const logout = async () => {
@@ -50,12 +71,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         user,
         activeOrg,
         uiProfile,
+        isBootstrapping,
         setActiveOrgId: (id) => {
           setActiveOrgId(id);
           const found = user?.memberships.find((m) => m.organization_id === id);
           if (found) setUiProfile(found.default_ui_profile);
         },
         setUiProfile,
+        updateUser: (updated) => setUser(updated),
         loginSuccess,
         logout,
       }}

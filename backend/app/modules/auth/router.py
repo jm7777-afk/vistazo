@@ -1,16 +1,15 @@
 """Endpoints de autenticación: registro, login, rotación, logout y perfil."""
 
-from __future__ import annotations
-
 from fastapi import APIRouter, Cookie, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.exceptions import UnauthorizedError
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.modules.auth.models import User
-from app.modules.auth.schemas import LoginRequest, RegisterRequest, TokenResponse, UserSummary
+from app.modules.auth.schemas import LoginRequest, RegisterRequest, TokenResponse, UpdatePreferencesRequest, UserSummary
 from app.modules.auth.service import (
     anonymize_user_account,
     authenticate_user,
@@ -51,12 +50,14 @@ def _set_auth_cookies(response: Response, raw_refresh: str, csrf_token: str) -> 
 
 
 @router.post("/register", response_model=UserSummary, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)) -> UserSummary:
     user = register_user(db, payload, ip_address=request.client.host if request.client else None)
     return build_user_summary(db, user)
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("15/minute")
 def login(
     payload: LoginRequest,
     request: Request,
@@ -122,6 +123,23 @@ def logout(
 
 @router.get("/me", response_model=UserSummary)
 def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> UserSummary:
+    return build_user_summary(db, current_user)
+
+
+@router.patch("/me/preferences", response_model=UserSummary)
+def update_preferences(
+    payload: UpdatePreferencesRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserSummary:
+    if payload.preferred_ui_profile is not None:
+        current_user.preferred_ui_profile = payload.preferred_ui_profile
+    if payload.daily_goal_minutes is not None:
+        current_user.daily_goal_minutes = payload.daily_goal_minutes
+    if payload.onboarding_completed is not None:
+        current_user.onboarding_completed = payload.onboarding_completed
+    db.commit()
+    db.refresh(current_user)
     return build_user_summary(db, current_user)
 
 

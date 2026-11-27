@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,7 @@ from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.observability import ObservabilityMiddleware, metrics_registry
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.modules.certificates.router import public_verify_router
 
@@ -20,6 +23,8 @@ from app.modules.certificates.router import public_verify_router
 def create_app() -> FastAPI:
     """Construye y configura la instancia FastAPI."""
     settings = get_settings()
+    if settings.environment == "production" and settings.jwt_secret_key.startswith("dev-only-insecure"):
+        raise RuntimeError("JWT_SECRET_KEY no puede usar el valor por defecto en producción")
     configure_logging()
 
     app = FastAPI(
@@ -28,6 +33,8 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(ObservabilityMiddleware)
     app.add_middleware(

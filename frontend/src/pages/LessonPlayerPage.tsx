@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Lightbulb, XCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Lightbulb, WifiOff, XCircle } from 'lucide-react';
 import { ChallengeRenderer } from '../components/challenges/ChallengeRenderer';
-import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
-import { apiRequest } from '../services/apiClient';
+import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../components/ui/StatusStates';
+import { enqueueOfflineAttempt } from '../pwa/offlineQueue';
+import { ApiError, apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
 import type { AttemptResult, ChallengePublic, SocraticHintResponse } from '../types/api';
 
@@ -16,6 +17,7 @@ export function LessonPlayerPage() {
 
   const [index, setIndex] = useState(0);
   const [lastResult, setLastResult] = useState<AttemptResult | null>(null);
+  const [offlineSavedMsg, setOfflineSavedMsg] = useState<string | null>(null);
   const [failedCounts, setFailedCounts] = useState<Record<string, number>>({});
   const [socraticHint, setSocraticHint] = useState<SocraticHintResponse | null>(null);
   const [startedAt, setStartedAt] = useState<number>(Date.now());
@@ -27,17 +29,51 @@ export function LessonPlayerPage() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: ({ challengeId, answer }: { challengeId: string; answer: Record<string, unknown> }) =>
-      apiRequest<AttemptResult>(`/challenges/${challengeId}/attempt`, {
-        method: 'POST',
-        body: JSON.stringify({
-          client_attempt_id: crypto.randomUUID(),
+    mutationFn: async ({ challengeId, answer }: { challengeId: string; answer: Record<string, unknown> }) => {
+      const attemptId = crypto.randomUUID();
+      const responseTime = Date.now() - startedAt;
+      if (!navigator.onLine) {
+        await enqueueOfflineAttempt({
+          client_attempt_id: attemptId,
+          challenge_id: challengeId,
           classroom_id: classroomId,
           submitted_answer: answer,
-          response_time_ms: Date.now() - startedAt,
-        }),
-      }),
+          response_time_ms: responseTime,
+          queued_at: Date.now(),
+        });
+        return null;
+      }
+      try {
+        return await apiRequest<AttemptResult>(`/challenges/${challengeId}/attempt`, {
+          method: 'POST',
+          body: JSON.stringify({
+            client_attempt_id: attemptId,
+            classroom_id: classroomId,
+            submitted_answer: answer,
+            response_time_ms: responseTime,
+          }),
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 0) {
+          await enqueueOfflineAttempt({
+            client_attempt_id: attemptId,
+            challenge_id: challengeId,
+            classroom_id: classroomId,
+            submitted_answer: answer,
+            response_time_ms: responseTime,
+            queued_at: Date.now(),
+          });
+          return null;
+        }
+        throw err;
+      }
+    },
     onSuccess: (res) => {
+      if (res === null) {
+        setOfflineSavedMsg('Sin conexión: intento guardado localmente para sincronizar al volver la red.');
+        return;
+      }
+      setOfflineSavedMsg(null);
       setLastResult(res);
       if (!res.is_correct) {
         setFailedCounts((prev) => ({
@@ -65,7 +101,7 @@ export function LessonPlayerPage() {
 
   const current = challenges[index];
   const isLast = index === challenges.length - 1;
-  const pct = Math.round(((index + (lastResult ? 1 : 0)) / challenges.length) * 100);
+  const pct = Math.round(((index + (lastResult || offlineSavedMsg ? 1 : 0)) / challenges.length) * 100);
   const currentFailures = failedCounts[current.id] ?? 0;
 
   return (
@@ -106,6 +142,25 @@ export function LessonPlayerPage() {
           </div>
         )}
 
+        {offlineSavedMsg && (
+          <div className="mt-4 space-y-3">
+            <SuccessBanner message={offlineSavedMsg} />
+            {!isLast && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIndex((i) => i + 1);
+                  setOfflineSavedMsg(null);
+                  setStartedAt(Date.now());
+                }}
+                className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold"
+              >
+                <WifiOff className="h-3.5 w-3.5" /> Continuar sin conexión
+              </button>
+            )}
+          </div>
+        )}
+
         {user && currentFailures >= 2 && (
           <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -124,9 +179,7 @@ export function LessonPlayerPage() {
             {hintMutation.error && (
               <p className="mt-2 text-xs text-red-700">{(hintMutation.error as Error).message}</p>
             )}
-            {socraticHint && (
-              <p className="mt-2 text-sm text-indigo-950">{socraticHint.hint}</p>
-            )}
+            {socraticHint && <p className="mt-2 text-sm text-indigo-950">{socraticHint.hint}</p>}
           </div>
         )}
 

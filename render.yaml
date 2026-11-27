@@ -22,6 +22,10 @@ services:
         value: none
       - key: CORS_ORIGINS
         sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: RUN_DEMO_SEED
+        value: "true"
       - key: AI_PROVIDER
         value: fallback
 

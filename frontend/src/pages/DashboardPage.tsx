@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Award, Battery, BookOpen, Flame, GraduationCap, Medal, Trophy } from 'lucide-react';
+import { Award, Battery, BookOpen, Brain, Flame, GraduationCap, Medal, Timer, Trophy } from 'lucide-react';
 import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
 import type {
   ClassroomOut,
   CourseSummary,
+  DueReviewItem,
   GamificationProfile,
   LeaderboardEntry,
   LessonProgressOut,
@@ -57,6 +58,15 @@ export function DashboardPage() {
     enabled: Boolean(user && activeOrg && firstClassroomId),
   });
 
+  const dueReviewsQuery = useQuery({
+    queryKey: ['due-reviews-count', activeOrg?.organization_id],
+    queryFn: () =>
+      apiRequest<DueReviewItem[]>(
+        `/reviews/due${activeOrg ? `?organization_id=${activeOrg.organization_id}` : ''}`
+      ),
+    enabled: Boolean(user),
+  });
+
   if (!user) {
     return (
       <EmptyState
@@ -68,6 +78,26 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <section className="surface-card bg-gradient-to-r from-[var(--bg-surface)] to-[var(--bg-accent-soft)] p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-bold uppercase text-[var(--brand-primary)]">
+            <Timer className="h-4 w-4" /> Tu próxima misión ({user.daily_goal_minutes ?? 5} min)
+          </p>
+          <h2 className="mt-1 text-base font-bold">
+            {(dueReviewsQuery.data?.length ?? 0) > 0
+              ? `Tienes ${dueReviewsQuery.data?.length} retos listos para repaso SM-2 hoy`
+              : 'Mantén tu racha completando una microlección hoy'}
+          </h2>
+        </div>
+        <Link
+          to={(dueReviewsQuery.data?.length ?? 0) > 0 ? '/reviews' : '/catalog'}
+          className="btn-primary inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold"
+        >
+          <Brain className="h-4 w-4" />
+          {(dueReviewsQuery.data?.length ?? 0) > 0 ? 'Repasar ahora' : 'Explorar lección'}
+        </Link>
+      </section>
+
       <section className="surface-card p-6">
         <h1 className="text-2xl font-bold">Hola, {user.full_name}</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">

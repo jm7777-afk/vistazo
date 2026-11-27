@@ -1,3 +1,5 @@
+import type { TokenResponse } from '../types/api';
+
 function resolveApiBase(): string {
   const raw = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
   if (!raw) return '/api/v1';
@@ -19,6 +21,13 @@ export function getAccessToken(): string | null {
   return accessTokenMemory;
 }
 
+function readCookie(name: string): string | null {
+  const match = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split('=')[1] ?? '') : null;
+}
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -30,22 +39,50 @@ export class ApiError extends Error {
   }
 }
 
+export async function restoreSessionOnBoot(): Promise<TokenResponse | null> {
+  const cookieCsrf = csrfTokenMemory || readCookie('vistazo_csrf');
+  if (!cookieCsrf) return null;
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRF-Token': cookieCsrf,
+      },
+    });
+    if (!res.ok) {
+      setSessionTokens(null, null);
+      return null;
+    }
+    const data = (await res.json()) as TokenResponse;
+    setSessionTokens(data.access_token, data.csrf_token);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 async function tryRefresh(): Promise<boolean> {
-  if (!csrfTokenMemory) return false;
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfTokenMemory,
-    },
-  });
-  if (!res.ok) {
-    setSessionTokens(null, null);
+  const csrf = csrfTokenMemory || readCookie('vistazo_csrf');
+  if (!csrf) return false;
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRF-Token': csrf,
+      },
+    });
+    if (!res.ok) {
+      setSessionTokens(null, null);
+      return false;
+    }
+    const data = await res.json();
+    setSessionTokens(data.access_token, data.csrf_token);
+    return true;
+  } catch {
     return false;
   }
-  const data = await res.json();
-  setSessionTokens(data.access_token, data.csrf_token);
-  return true;
 }
 
 export async function apiRequest<T>(
