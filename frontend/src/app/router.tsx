@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
+import { TourProvider } from '../components/tour/InteractiveTour';
 import { LoadingState } from '../components/ui/StatusStates';
 import { AccountRecoveryPage } from '../pages/AccountRecoveryPage';
 import { LoginPage, RegisterPage } from '../pages/AuthPages';
@@ -25,39 +26,41 @@ export function AppRouter() {
 
   return (
     <BrowserRouter>
-      <AppShell>
-        {isBootstrapping ? (
-          <LoadingState label="Restaurando tu sesión..." />
-        ) : (
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/catalog" element={<CatalogPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/recuperar-cuenta" element={<AccountRecoveryPage />} />
-            <Route path="/unirse" element={<JoinClassroomPage />} />
-            <Route path="/unirse/:inviteCode" element={<JoinClassroomPage />} />
-            <Route path="/vivo" element={<LiveQuizPage />} />
-            <Route path="/vivo/:roomCode" element={<LiveQuizPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/reviews" element={<SpacedReviewPage />} />
-            <Route path="/library" element={<VisualLibraryPage />} />
-            <Route path="/certificates" element={<MyCertificatesPage />} />
-            <Route path="/familia" element={<FamilyPanelPage />} />
-            <Route path="/planes" element={<BillingPlansPage />} />
-            <Route path="/verificar-certificado/:hash" element={<VerifyCertificatePage />} />
-            <Route path="/courses/:courseId" element={<CourseDetailPage />} />
-            <Route path="/lessons/:lessonVersionId" element={<LessonPlayerPage />} />
-            <Route path="/studio" element={<StudioPage />} />
-            <Route path="/instructor" element={<InstructorPage />} />
-            <Route path="/coordinator" element={<CoordinatorPage />} />
-            <Route path="/admin" element={<SuperAdminPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="*" element={<LandingPage />} />
-          </Routes>
-        )}
-      </AppShell>
+      <TourProvider>
+        <AppShell>
+          {isBootstrapping ? (
+            <LoadingState label="Restaurando tu sesión..." />
+          ) : (
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/catalog" element={<CatalogPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/recuperar-cuenta" element={<AccountRecoveryPage />} />
+              <Route path="/unirse" element={<JoinClassroomPage />} />
+              <Route path="/unirse/:inviteCode" element={<JoinClassroomPage />} />
+              <Route path="/vivo" element={<LiveQuizPage />} />
+              <Route path="/vivo/:roomCode" element={<LiveQuizPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/reviews" element={<SpacedReviewPage />} />
+              <Route path="/library" element={<VisualLibraryPage />} />
+              <Route path="/certificates" element={<MyCertificatesPage />} />
+              <Route path="/familia" element={<FamilyPanelPage />} />
+              <Route path="/planes" element={<BillingPlansPage />} />
+              <Route path="/verificar-certificado/:hash" element={<VerifyCertificatePage />} />
+              <Route path="/courses/:courseId" element={<CourseDetailPage />} />
+              <Route path="/lessons/:lessonVersionId" element={<LessonPlayerPage />} />
+              <Route path="/studio" element={<StudioPage />} />
+              <Route path="/instructor" element={<InstructorPage />} />
+              <Route path="/coordinator" element={<CoordinatorPage />} />
+              <Route path="/admin" element={<SuperAdminPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="*" element={<LandingPage />} />
+            </Routes>
+          )}
+        </AppShell>
+      </TourProvider>
     </BrowserRouter>
   );
 }

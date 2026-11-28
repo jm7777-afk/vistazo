@@ -71,7 +71,7 @@ export function FamilyPanelPage() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="surface-card p-6">
+      <form data-tour="family-code-form" onSubmit={handleSubmit} className="surface-card p-6">
         <label className="block text-sm font-semibold">
           Código de acceso familiar del estudiante
           <div className="mt-2 flex flex-wrap gap-2">

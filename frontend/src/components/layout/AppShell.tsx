@@ -5,6 +5,7 @@ import { flushOfflineAttempts, listOfflineAttempts } from '../../pwa/offlineQueu
 import { apiRequest } from '../../services/apiClient';
 import { useAppState } from '../../stores/AppContext';
 import type { UIProfile } from '../../types/api';
+import { useInteractiveTour } from '../tour/InteractiveTour';
 import { QuickHelpFab } from '../ui/QuickHelpFab';
 
 const PROFILE_CYCLE: UIProfile[] = ['pro', 'youth', 'kids'];
@@ -16,6 +17,7 @@ const PROFILE_LABEL: Record<UIProfile, string> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, activeOrg, setActiveOrgId, uiProfile, setUiProfile, logout } = useAppState();
+  const { startTour } = useInteractiveTour();
   const location = useLocation();
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -145,6 +147,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => startTour()}
+              title="Iniciar guía interactiva paso a paso"
+              className="hidden items-center gap-1 rounded-xl border border-[var(--brand-primary)]/40 bg-[var(--bg-accent-soft)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--brand-primary)] transition hover:brightness-95 sm:inline-flex"
+            >
+              <Compass className="h-3.5 w-3.5" />
+              Tour
+            </button>
             {user && user.memberships.length > 0 && (
               <select
                 aria-label="Seleccionar organización activa"

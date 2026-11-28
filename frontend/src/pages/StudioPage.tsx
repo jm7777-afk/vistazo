@@ -178,7 +178,7 @@ export function StudioPage() {
 
       {/* Navegación paso a paso del Estudio */}
       <div className="space-y-2.5">
-        <div className="flex flex-wrap gap-2">
+        <div data-tour="studio-stepper" className="flex flex-wrap gap-2">
           {tabs.map((item) => {
             const Icon = item.icon;
             const active = tab === item.id;
@@ -214,7 +214,7 @@ export function StudioPage() {
         )}
       </div>
 
-      <div key={tab} className="vzt-fade-up">
+      <div key={tab} data-tour="studio-workspace" className="vzt-fade-up">
 
       {tab === 'blueprint' && (
         <BlueprintTab

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Compass, HeartHandshake, HelpCircle, Palette, Radio, School, Sparkles, Wand2, X } from 'lucide-react';
+import { Compass, GraduationCap, HeartHandshake, HelpCircle, Palette, Play, Presentation, Radio, School, Sparkles, Wand2, X } from 'lucide-react';
 import { useAppState } from '../../stores/AppContext';
 import type { UIProfile } from '../../types/api';
+import { useInteractiveTour } from '../tour/InteractiveTour';
 
 const PROFILES: { id: UIProfile; label: string; desc: string }[] = [
   { id: 'pro', label: 'Profesional', desc: 'Tono sobrio y técnico' },
@@ -13,6 +14,7 @@ const PROFILES: { id: UIProfile; label: string; desc: string }[] = [
 export function QuickHelpFab() {
   const [open, setOpen] = useState(false);
   const { user, activeOrg, uiProfile, setUiProfile } = useAppState();
+  const { startTour } = useInteractiveTour();
 
   const isEducator = Boolean(
     user?.is_super_admin ||
@@ -51,8 +53,39 @@ export function QuickHelpFab() {
             </button>
           </div>
 
+          <div className="mt-3 rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--bg-accent-soft)]/70 p-3 space-y-2">
+            <p className="flex items-center gap-1.5 text-xs font-extrabold text-[var(--brand-primary)]">
+              <Play className="h-3.5 w-3.5 fill-current" /> Tour Interactivo Paso a Paso
+            </p>
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              Te llevamos por la plataforma destacando botones reales para que practiques en vivo.
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  startTour('student');
+                }}
+                className="btn-primary inline-flex items-center justify-center gap-1 px-2.5 py-2 text-[11px] font-bold"
+              >
+                <GraduationCap className="h-3.5 w-3.5" /> Soy Estudiante
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  startTour('educator');
+                }}
+                className="inline-flex items-center justify-center gap-1 rounded-xl border border-[var(--brand-primary)] bg-white px-2.5 py-2 text-[11px] font-bold text-[var(--brand-primary)] hover:bg-slate-50"
+              >
+                <Presentation className="h-3.5 w-3.5" /> Soy Educador
+              </button>
+            </div>
+          </div>
+
           <p className="mt-3 text-xs text-[var(--text-secondary)]">
-            Atajos directos según lo que quieras hacer ahora:
+            O ve directo a una sección:
           </p>
 
           <div className="mt-3 space-y-2">

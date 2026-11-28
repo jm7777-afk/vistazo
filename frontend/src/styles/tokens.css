@@ -273,6 +273,22 @@ textarea:focus-visible {
   transform: rotateY(180deg);
 }
 
+@keyframes vzt-tour-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px var(--brand-primary), 0 0 0 8px rgba(15, 76, 92, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--brand-secondary), 0 0 0 14px rgba(217, 119, 6, 0.14);
+  }
+}
+
+.vzt-tour-highlight {
+  position: relative;
+  z-index: 25 !important;
+  border-radius: var(--radius-card);
+  animation: vzt-tour-pulse 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vzt-fade-up,
   .vzt-scale-in,

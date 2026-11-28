@@ -53,7 +53,7 @@ export function JoinClassroomPage() {
           Ingresa el código compartido por tu docente o coordinador (ej. VZT-ABC123).
         </p>
 
-        <form onSubmit={handleLookup} className="flex gap-2">
+        <form data-tour="join-code-box" onSubmit={handleLookup} className="flex gap-2">
           <input
             required
             placeholder="VZT-XXXXXX"

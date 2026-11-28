@@ -59,7 +59,7 @@ export function CatalogPage() {
         </div>
 
         {/* Barra de búsqueda y filtros por nivel */}
-        <div className="mt-5 space-y-3 border-t border-[var(--border-subtle)]/70 pt-4">
+        <div data-tour="catalog-filters" className="mt-5 space-y-3 border-t border-[var(--border-subtle)]/70 pt-4">
           <div className="relative max-w-md">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[var(--text-secondary)]" />
             <input

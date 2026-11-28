@@ -92,7 +92,7 @@ export function BillingPlansPage() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div data-tour="billing-plans" className="grid gap-4 md:grid-cols-3">
         {(plansQuery.data ?? []).map((plan) => {
           const isCurrent = subQuery.data?.plan_code === plan.plan_code;
           return (

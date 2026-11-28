@@ -175,7 +175,7 @@ export function SpacedReviewPage() {
             Retos priorizados por curva de olvido y refresco periódico de seguridad crítica (máx. 45 días).
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div data-tour="reviews-actions" className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={startSession.isPending}
@@ -302,7 +302,7 @@ function NotesAndFlashcardsSection() {
             Guarda resúmenes clave, convierte conceptos en tarjetas de estudio e impórtalas o expórtalas a Anki.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div data-tour="reviews-actions" className="flex flex-wrap gap-2">
           {flashcards.length > 0 && (
             <button
               type="button"

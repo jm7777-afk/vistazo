@@ -19,6 +19,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { CelebrationBurst, QuickGuideBanner } from '../components/ui/MotionPrimitives';
+import { useInteractiveTour } from '../components/tour/InteractiveTour';
 import { useAppState } from '../stores/AppContext';
 import type { UIProfile } from '../types/api';
 
@@ -30,6 +31,7 @@ const DEMO_OPTIONS = [
 
 export function LandingPage() {
   const { user, uiProfile, setUiProfile } = useAppState();
+  const { startTour } = useInteractiveTour();
   const navigate = useNavigate();
   const [demoAnswer, setDemoAnswer] = useState<string>('');
   const [demoSubmitted, setDemoSubmitted] = useState(false);
@@ -103,6 +105,13 @@ export function LandingPage() {
                   <School className="h-4 w-4 text-[var(--brand-primary)]" /> Entrar con código
                 </Link>
               )}
+              <button
+                type="button"
+                onClick={() => startTour('student')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--brand-primary)]/40 bg-[var(--bg-accent-soft)] px-4 py-3 text-sm font-bold text-[var(--brand-primary)] transition hover:-translate-y-0.5"
+              >
+                <Sparkles className="h-4 w-4" /> Tour interactivo (60 s)
+              </button>
             </div>
 
             <div className="flex flex-wrap gap-2 pt-2 text-[11px] font-semibold text-[var(--text-secondary)]">
@@ -119,7 +128,7 @@ export function LandingPage() {
           </div>
 
           {/* Vista previa interactiva de 30 segundos sin registro */}
-          <div className="surface-card relative bg-white p-6 shadow-lg space-y-4">
+          <div data-tour="hero-demo" className="surface-card relative bg-white p-6 shadow-lg space-y-4">
             <div className="flex items-center justify-between gap-2">
               <span className="rounded-full bg-[var(--bg-accent-soft)] px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
                 Pruébalo aquí en 30 s
@@ -316,7 +325,7 @@ export function LandingPage() {
             <Smartphone className="h-4 w-4" /> Mobile-First
           </span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div data-tour="profile-switcher" className="grid gap-3 sm:grid-cols-3">
           {profileSamples.map((p) => (
             <button
               key={p.id}

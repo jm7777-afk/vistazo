@@ -190,7 +190,7 @@ export function RegisterPage() {
             <span className="block text-sm font-bold text-[var(--text-primary)]">
               ¿Eres educador o estudiante?
             </span>
-            <div className="grid gap-2.5 sm:grid-cols-2">
+            <div data-tour="register-role" className="grid gap-2.5 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => setAccountType('student')}
