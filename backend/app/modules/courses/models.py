@@ -86,6 +86,7 @@ class Lesson(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             name="ck_lesson_type",
         ),
         CheckConstraint("passing_score_pct BETWEEN 0 AND 100", name="ck_lesson_passing_score"),
+        CheckConstraint("sample_size IS NULL OR (sample_size >= 1 AND sample_size <= 50)", name="ck_lesson_sample_size"),
     )
 
     module_id: Mapped[uuid.UUID] = mapped_column(
@@ -97,6 +98,8 @@ class Lesson(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     estimated_minutes: Mapped[int] = mapped_column(SmallInteger, default=5, nullable=False)
     lesson_type: Mapped[str] = mapped_column(String(30), default="micro_lesson", nullable=False)
     passing_score_pct: Mapped[int] = mapped_column(SmallInteger, default=70, nullable=False)
+    randomize_order: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sample_size: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     is_safety_critical: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

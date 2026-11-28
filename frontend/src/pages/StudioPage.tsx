@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, BookMarked, Flame, Image, Layers, Sparkles, Wand2 } from 'lucide-react';
+import { BarChart3, BookMarked, Database, Flame, Image, Layers, Sparkles, Wand2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { AnalyticsInvitesTab } from '../components/studio/AnalyticsInvitesTab';
+import { BankAndGradingTab } from '../components/studio/BankAndGradingTab';
 import { BlueprintTab } from '../components/studio/BlueprintTab';
 import { ChallengesExamTab } from '../components/studio/ChallengesExamTab';
 import { CoursesNodesTab } from '../components/studio/CoursesNodesTab';
@@ -12,7 +14,7 @@ import { EmptyState } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
 
-type TabId = 'blueprint' | 'courses' | 'guides' | 'challenges' | 'visuals' | 'analytics';
+type TabId = 'blueprint' | 'courses' | 'guides' | 'challenges' | 'bank' | 'visuals' | 'analytics';
 
 export function StudioPage() {
   const { user, activeOrg } = useAppState();
@@ -81,6 +83,7 @@ export function StudioPage() {
     { id: 'courses', label: 'Materias y Nodos', icon: Layers },
     { id: 'guides', label: 'Guías, Temarios y Pensum', icon: BookMarked },
     { id: 'challenges', label: 'Retos y Pruebas Fuertes', icon: Flame },
+    { id: 'bank', label: 'Banco y Calificación', icon: Database },
     { id: 'visuals', label: 'Imágenes Dinámicas', icon: Image },
     { id: 'analytics', label: 'Analíticas, QR y Vivo', icon: BarChart3 },
   ];
@@ -89,9 +92,17 @@ export function StudioPage() {
     <div className="space-y-6">
       <div className="surface-card p-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--bg-accent-soft)] px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
-            <Sparkles className="h-3.5 w-3.5" /> Estudio Pedagógico {user.is_super_admin ? 'SuperAdmin' : 'Educador'}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--bg-accent-soft)] px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
+              <Sparkles className="h-3.5 w-3.5" /> Estudio Pedagógico {user.is_super_admin ? 'SuperAdmin' : 'Educador'}
+            </span>
+            <Link
+              to="/planes"
+              className="rounded-full border border-[var(--border-subtle)] bg-white px-3 py-1 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-primary)]"
+            >
+              Ver Planes SaaS y Cupos
+            </Link>
+          </div>
           <h1 className="mt-2 text-2xl font-bold">Creación Manual o Asistida por IA — {scope.label}</h1>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
             CRUD completo de materias, módulos, nodos, temarios, metodología, guías, pruebas fuertes e imágenes dinámicas.
@@ -180,6 +191,8 @@ export function StudioPage() {
           onVersionSelected={setSelectedLvId}
         />
       )}
+
+      {tab === 'bank' && <BankAndGradingTab scope={scope} selectedLessonVersionId={selectedLvId} />}
 
       {tab === 'visuals' && <DynamicVisualsTab scope={scope} selectedLessonVersionId={selectedLvId} />}
 

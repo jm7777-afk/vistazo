@@ -59,6 +59,8 @@ export interface LessonOut {
   lesson_type?: LessonType;
   passing_score_pct?: number;
   is_safety_critical: boolean;
+  randomize_order?: boolean;
+  sample_size?: number | null;
   active_lesson_version_id: string | null;
   active_version_number: number | null;
 }
@@ -208,7 +210,8 @@ export type ChallengeType =
   | 'sequence_ordering'
   | 'interactive_zones'
   | 'decision_simulation'
-  | 'fill_in_blanks';
+  | 'fill_in_blanks'
+  | 'open_response';
 
 export interface ChallengePublic {
   id: string;
@@ -558,4 +561,78 @@ export interface StudentCompetencyOut {
   evaluated_attempts: number;
   mastery_status: string;
   last_evaluated_at: string;
+}
+
+export interface QuestionBankOut {
+  id: string;
+  organization_id: string | null;
+  course_id: string | null;
+  topic_tag: string;
+  challenge_type: ChallengeType;
+  prompt: string;
+  payload_json: Record<string, unknown>;
+  answer_key_json: Record<string, unknown>;
+  pedagogical_explanation: string;
+  difficulty: number;
+  points: number;
+  estimated_seconds: number;
+  is_safety_critical: boolean;
+  created_at: string;
+}
+
+export interface OpenSubmissionOut {
+  id: string;
+  challenge_id: string;
+  user_id: string;
+  response_text: string;
+  max_points: number;
+  ai_suggested_score: number | null;
+  ai_feedback: string | null;
+  final_score: number | null;
+  teacher_feedback: string | null;
+  status: 'pending_review' | 'ai_suggested' | 'graded';
+  created_at: string;
+  graded_at: string | null;
+}
+
+export interface NoteOut {
+  id: string;
+  user_id: string;
+  course_id: string | null;
+  lesson_id: string | null;
+  title: string;
+  content: string;
+  highlight_quote: string | null;
+  is_flashcard: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuardianSummaryOut {
+  student_initials: string;
+  daily_goal_minutes: number;
+  total_xp: number;
+  current_streak_days: number;
+  longest_streak_days: number;
+  completed_lessons_count: number;
+  badges_count: number;
+  consent_status: string;
+}
+
+export interface BillingPlanOut {
+  plan_code: string;
+  name: string;
+  price_monthly_usd: number;
+  max_students: number;
+  monthly_ai_limit: number;
+  features: string[];
+}
+
+export interface SubscriptionOut {
+  organization_id: string;
+  plan_code: string;
+  status: string;
+  max_students: number;
+  monthly_ai_limit: number;
+  current_period_end: string | null;
 }

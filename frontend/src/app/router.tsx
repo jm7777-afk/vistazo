@@ -3,10 +3,12 @@ import { AppShell } from '../components/layout/AppShell';
 import { LoadingState } from '../components/ui/StatusStates';
 import { AccountRecoveryPage } from '../pages/AccountRecoveryPage';
 import { LoginPage, RegisterPage } from '../pages/AuthPages';
+import { BillingPlansPage } from '../pages/BillingPlansPage';
 import { CatalogPage } from '../pages/CatalogPage';
 import { MyCertificatesPage, VerifyCertificatePage } from '../pages/CertificatesPage';
 import { CourseDetailPage } from '../pages/CourseDetailPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { FamilyPanelPage } from '../pages/FamilyPanelPage';
 import { JoinClassroomPage } from '../pages/JoinClassroomPage';
 import { LandingPage } from '../pages/LandingPage';
 import { LessonPlayerPage } from '../pages/LessonPlayerPage';
@@ -42,6 +44,8 @@ export function AppRouter() {
             <Route path="/reviews" element={<SpacedReviewPage />} />
             <Route path="/library" element={<VisualLibraryPage />} />
             <Route path="/certificates" element={<MyCertificatesPage />} />
+            <Route path="/familia" element={<FamilyPanelPage />} />
+            <Route path="/planes" element={<BillingPlansPage />} />
             <Route path="/verificar-certificado/:hash" element={<VerifyCertificatePage />} />
             <Route path="/courses/:courseId" element={<CourseDetailPage />} />
             <Route path="/lessons/:lessonVersionId" element={<LessonPlayerPage />} />

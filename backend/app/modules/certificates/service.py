@@ -32,7 +32,7 @@ from app.modules.auth.models import User
 from app.modules.certificates.models import Certificate, CertificateRevocation, CertificateSignature
 from app.modules.certificates.schemas import PublicCertificateVerificationOut
 from app.modules.courses.models import Lesson, LessonVersion, Module
-from app.modules.curriculum.models import CurriculumUnit, CurriculumVersion, Program
+from app.modules.curriculum.models import Classroom, ClassroomMember, CurriculumUnit, CurriculumVersion, Program
 from app.modules.progress.models import LessonProgress
 from app.modules.tenants.models import Organization, OrganizationMember
 
@@ -435,3 +435,73 @@ def verify_certificate_by_hash(db: Session, raw_hash: str) -> PublicCertificateV
         revoked_at=rev.revoked_at if rev else None,
         revocation_reason=rev.reason if rev else None,
     )
+
+
+def claim_eligible_certificates_for_student(db: Session, *, student: User) -> list[Certificate]:
+    """Evalúa aulas activas del estudiante y auto-emite certificados si cumple nota y unidades."""
+    memberships = db.execute(
+        select(ClassroomMember, Classroom, Organization)
+        .join(Classroom, ClassroomMember.classroom_id == Classroom.id)
+        .join(Organization, Classroom.organization_id == Organization.id)
+        .where(
+            ClassroomMember.user_id == student.id,
+            ClassroomMember.deleted_at.is_(None),
+            Classroom.deleted_at.is_(None),
+        )
+    ).all()
+
+    newly_issued: list[Certificate] = []
+    for _cm, classroom, org in memberships:
+        existing = db.scalar(
+            select(Certificate).where(
+                Certificate.user_id == student.id,
+                Certificate.curriculum_version_id == classroom.curriculum_version_id,
+                Certificate.status.in_(["pending", "issued"]),
+            )
+        )
+        if existing:
+            continue
+
+        cv = db.scalar(
+            select(CurriculumVersion).where(
+                CurriculumVersion.id == classroom.curriculum_version_id,
+                CurriculumVersion.status == "published",
+            )
+        )
+        if not cv:
+            continue
+
+        try:
+            final_grade = _calculate_student_curriculum_grade(
+                db,
+                user_id=student.id,
+                curriculum_version_id=cv.id,
+                classroom_id=classroom.id,
+            )
+        except ValidationDomainError:
+            # fallback sin filtrar classroom_id si completó en estudio vinculado
+            try:
+                final_grade = _calculate_student_curriculum_grade(
+                    db,
+                    user_id=student.id,
+                    curriculum_version_id=cv.id,
+                    classroom_id=None,
+                )
+            except ValidationDomainError:
+                continue
+
+        if final_grade < cv.passing_score:
+            continue
+
+        cert = issue_certificate(
+            db,
+            organization=org,
+            signer=student,
+            student_email=student.email,
+            curriculum_version_id=cv.id,
+            classroom_id=classroom.id,
+            signer_title="Emisión Automática por Cumplimiento de Pensum",
+        )
+        newly_issued.append(cert)
+
+    return newly_issued

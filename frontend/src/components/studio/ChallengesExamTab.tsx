@@ -224,6 +224,21 @@ export function ChallengesExamTab({
         },
       };
       answer_key_json = { optimal_paths: [['c_ok']], acceptable_terminal_nodes: ['end_ok'] };
+    } else if (chType === 'open_response') {
+      const keywords = pairLines
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      payload_json = {
+        instruction: chExplanation || 'Desarrolla tu argumentación completa.',
+        min_words: 8,
+        keywords_expected: keywords,
+      };
+      answer_key_json = {
+        reference_answer: optCorrect || chExplanation,
+        rubric_criteria: keywords,
+        auto_ai_grade: true,
+      };
     } else {
       // interactive_zones
       const selectedMedia = mediaQuery.data?.find((m) => m.id === attachedMediaId);
@@ -564,6 +579,7 @@ export function ChallengesExamTab({
                 <option value="interactive_zones">Zonas Interactivas (Diagrama)</option>
                 <option value="decision_simulation">Simulación de Decisiones</option>
                 <option value="fill_in_blanks">Completar Espacios</option>
+                <option value="open_response">Respuesta Abierta (Rúbrica IA y Docente)</option>
               </select>
               <select
                 value={attachedMediaId}
@@ -588,20 +604,29 @@ export function ChallengesExamTab({
               className="w-full rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
             />
 
-            {(chType === 'visual_concept_card' || chType === 'decision_simulation') && (
+            {(chType === 'visual_concept_card' || chType === 'decision_simulation' || chType === 'open_response') && (
               <div className="grid gap-2 sm:grid-cols-2">
                 <input
-                  placeholder="Respuesta / opción correcta"
+                  placeholder={chType === 'open_response' ? 'Respuesta modelo de referencia' : 'Respuesta / opción correcta'}
                   value={optCorrect}
                   onChange={(e) => setOptCorrect(e.target.value)}
                   className="rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-xs"
                 />
-                <input
-                  placeholder="Opción distractora"
-                  value={optWrong}
-                  onChange={(e) => setOptWrong(e.target.value)}
-                  className="rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-xs"
-                />
+                {chType === 'open_response' ? (
+                  <input
+                    placeholder="Palabras clave para rúbrica (separadas por coma)"
+                    value={pairLines}
+                    onChange={(e) => setPairLines(e.target.value)}
+                    className="rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-xs"
+                  />
+                ) : (
+                  <input
+                    placeholder="Opción distractora"
+                    value={optWrong}
+                    onChange={(e) => setOptWrong(e.target.value)}
+                    className="rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-xs"
+                  />
+                )}
               </div>
             )}
 

@@ -23,6 +23,9 @@ from app.modules.challenges.contracts import (
     MatchingAnswerKey,
     MatchingPayload,
     MatchingSubmission,
+    OpenResponseAnswerKey,
+    OpenResponsePayload,
+    OpenResponseSubmission,
     SequenceAnswerKey,
     SequencePayload,
     SequenceSubmission,
@@ -333,6 +336,49 @@ class FillInBlanksHandler(BaseChallengeHandler[FillInBlanksPayload, FillInBlanks
         )
 
 
+class OpenResponseHandler(BaseChallengeHandler[OpenResponsePayload, OpenResponseAnswerKey, OpenResponseSubmission]):
+    payload_model = OpenResponsePayload
+    answer_key_model = OpenResponseAnswerKey
+    submission_model = OpenResponseSubmission
+
+    def _score(
+        self,
+        *,
+        payload: OpenResponsePayload,
+        answer_key: OpenResponseAnswerKey,
+        submission: OpenResponseSubmission,
+        max_points: int,
+        is_safety_critical: bool,
+    ) -> EvaluationResult:
+        text = submission.response_text.strip()
+        words = [w for w in text.split() if w]
+        low = text.lower()
+        criteria = [c.strip() for c in (payload.keywords_expected or answer_key.rubric_criteria) if c.strip()]
+        if not criteria:
+            criteria = [w for w in answer_key.reference_answer.lower().split() if len(w) >= 5][:4]
+
+        matched = [c for c in criteria if c.lower() in low]
+        ratio = (len(matched) / len(criteria)) if criteria else (1.0 if len(words) >= payload.min_words else 0.5)
+        length_ok = len(words) >= payload.min_words
+        if not length_ok:
+            ratio = min(ratio, 0.5)
+        awarded = int(round(max_points * ratio))
+        is_ok = ratio >= 0.6 and length_ok
+        feedback = (
+            f"Pre-evaluación por rúbrica: {len(matched)}/{len(criteria) or 1} criterios clave cubiertos "
+            f"({len(words)} palabras). Pendiente o validado para revisión docente."
+        )
+        return EvaluationResult(
+            is_correct=is_ok,
+            score_awarded=awarded,
+            detail={
+                "word_count": len(words),
+                "matched_criteria": matched,
+                "rubric_feedback": feedback,
+            },
+        )
+
+
 CHALLENGE_REGISTRY: dict[tuple[str, int], BaseChallengeHandler[Any, Any, Any]] = {
     ("visual_concept_card", 1): VisualConceptHandler(),
     ("matching", 1): MatchingHandler(),
@@ -340,6 +386,7 @@ CHALLENGE_REGISTRY: dict[tuple[str, int], BaseChallengeHandler[Any, Any, Any]] =
     ("interactive_zones", 1): InteractiveZonesHandler(),
     ("decision_simulation", 1): DecisionSimulationHandler(),
     ("fill_in_blanks", 1): FillInBlanksHandler(),
+    ("open_response", 1): OpenResponseHandler(),
 }
 
 

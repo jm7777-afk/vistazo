@@ -9,11 +9,13 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import Response
+import httpx
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import TenantContext, get_current_user, get_optional_user, require_permission, require_super_admin
+from app.core.config import get_settings
 from app.core.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from app.db.session import get_db
 from app.modules.auth.models import User
@@ -66,6 +68,13 @@ class MediaAssetUpdate(BaseModel):
     visibility: Literal["public", "institutional", "private"] | None = None
     dynamic_spec: dict[str, Any] | None = None
     raw_svg: str | None = None
+
+
+class AIIllustrationRequest(BaseModel):
+    topic: str = Field(min_length=3, max_length=240)
+    style: Literal["scientific", "diagram", "illustration"] = "scientific"
+    education_level: str = "specialized"
+    visibility: Literal["public", "institutional", "private"] = "institutional"
 
 
 class SignedUrlOut(BaseModel):
@@ -420,6 +429,105 @@ def delete_global_media_asset(
 ) -> Response:
     _delete_scoped_media(db, asset_id=asset_id, organization_id=None)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _create_ai_illustration_impl(
+    db: Session,
+    *,
+    organization_id: uuid.UUID | None,
+    actor_user_id: uuid.UUID,
+    payload: AIIllustrationRequest,
+) -> MediaAssetOut:
+    """Genera ilustración real vía proveedor externo opcional o SVG multi-capa enriquecido."""
+    settings = get_settings()
+    asset_id = uuid.uuid4()
+    eff_visibility = "public" if organization_id is None else (
+        "institutional" if payload.visibility == "public" else payload.visibility
+    )
+
+    if settings.image_ai_provider == "pollinations":
+        try:
+            prompt_q = f"{payload.topic} {payload.style} educational clean illustration"
+            with httpx.Client(timeout=15.0) as client:
+                r = client.get(f"https://image.pollinations.ai/prompt/{prompt_q}")
+                if r.status_code == 200 and r.content[:4] in {b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1", b"RIFF"}:
+                    key = f"ai_img/{organization_id or 'global'}/{asset_id}.png"
+                    save_media_bytes(key, r.content, "image/png")
+                    asset = MediaAsset(
+                        id=asset_id,
+                        organization_id=organization_id,
+                        uploaded_by=actor_user_id,
+                        title=payload.topic[:200],
+                        description=f"Ilustración IA ({payload.style})",
+                        tags_json=["ia-ilustracion", payload.style],
+                        education_level=payload.education_level,
+                        visibility=eff_visibility,
+                        media_format="png",
+                        mime_type="image/png",
+                        storage_key=key,
+                        byte_size=len(r.content),
+                        processing_status="ready",
+                    )
+                    db.add(asset)
+                    db.commit()
+                    db.refresh(asset)
+                    return _to_media_out(asset)
+        except Exception:
+            pass
+
+    svg_markup, zones = render_structured_diagram_svg(
+        {
+            "title": payload.topic,
+            "subtitle": f"Lámina ilustrativa ({payload.style})",
+            "template": "layers" if payload.style == "scientific" else "hierarchy",
+            "nodes": [
+                {"id": "z1", "label": payload.topic[:36], "detail": "Concepto visual central", "badge": "1"},
+                {"id": "z2", "label": "Estructura clave", "detail": "Componentes principales", "badge": "2"},
+                {"id": "z3", "label": "Aplicación", "detail": "Uso práctico en evaluación", "badge": "3"},
+            ],
+        }
+    )
+    asset = MediaAsset(
+        id=asset_id,
+        organization_id=organization_id,
+        uploaded_by=actor_user_id,
+        title=payload.topic[:200],
+        description=f"Ilustración IA ({payload.style})",
+        tags_json=["ia-ilustracion", payload.style],
+        education_level=payload.education_level,
+        visibility=eff_visibility,
+        media_format="svg",
+        mime_type="image/svg+xml",
+        storage_key=f"ai_img/{organization_id or 'global'}/{asset_id}.svg",
+        byte_size=max(1, len(svg_markup.encode("utf-8"))),
+        processing_status="ready",
+        svg_markup=svg_markup,
+        dynamic_spec_json={"title": payload.topic, "template": "layers", "zones": zones},
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return _to_media_out(asset)
+
+
+@router.post("/orgs/{org_id}/media/ai-illustration", response_model=MediaAssetOut, status_code=status.HTTP_201_CREATED)
+def create_org_ai_illustration(
+    payload: AIIllustrationRequest,
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> MediaAssetOut:
+    return _create_ai_illustration_impl(
+        db, organization_id=tenant.organization.id, actor_user_id=tenant.user.id, payload=payload
+    )
+
+
+@router.post("/admin/media/ai-illustration", response_model=MediaAssetOut, status_code=status.HTTP_201_CREATED)
+def create_global_ai_illustration(
+    payload: AIIllustrationRequest,
+    admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> MediaAssetOut:
+    return _create_ai_illustration_impl(db, organization_id=None, actor_user_id=admin.id, payload=payload)
 
 
 # ---------------------------------------------------------------------------

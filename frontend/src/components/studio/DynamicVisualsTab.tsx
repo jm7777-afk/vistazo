@@ -129,8 +129,28 @@ export function DynamicVisualsTab({ scope, selectedLessonVersionId }: Props) {
     },
   });
 
+  const generateIllustrationMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<MediaAssetOut>(`${prefix}/media/ai-illustration`, {
+        method: 'POST',
+        body: JSON.stringify({
+          topic: aiTopic || 'Diagrama educativo',
+          style: 'scientific',
+          visibility: scope.mode === 'global' ? 'public' : 'institutional',
+        }),
+      }),
+    onSuccess: (res) => {
+      setFeedback(`Ilustración generada (${res.mime_type}): "${res.title}".`);
+      void queryClient.invalidateQueries({ queryKey: ['studio-media', prefix] });
+    },
+  });
+
   const err =
-    generateVisualMutation.error || createManualDynamic.error || uploadFileMutation.error || deleteMediaMutation.error;
+    generateVisualMutation.error ||
+    generateIllustrationMutation.error ||
+    createManualDynamic.error ||
+    uploadFileMutation.error ||
+    deleteMediaMutation.error;
 
   return (
     <div className="space-y-5">
@@ -183,9 +203,19 @@ export function DynamicVisualsTab({ scope, selectedLessonVersionId }: Props) {
               Crear automáticamente un reto de <strong>Zonas Interactivas</strong> en la versión seleccionada
             </label>
           )}
-          <button type="submit" disabled={generateVisualMutation.isPending} className="btn-primary w-full py-2 text-xs font-bold">
-            {generateVisualMutation.isPending ? 'Generando imagen dinámica...' : 'Generar Imagen Dinámica con IA'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={generateVisualMutation.isPending} className="btn-primary flex-1 py-2 text-xs font-bold">
+              {generateVisualMutation.isPending ? 'Generando imagen dinámica...' : 'Generar Diagrama Interactivo IA'}
+            </button>
+            <button
+              type="button"
+              disabled={!aiTopic.trim() || generateIllustrationMutation.isPending}
+              onClick={() => generateIllustrationMutation.mutate()}
+              className="rounded-xl border border-[var(--brand-primary)] bg-white px-3 py-2 text-xs font-bold text-[var(--brand-primary)] hover:bg-[var(--bg-accent-soft)] disabled:opacity-50"
+            >
+              {generateIllustrationMutation.isPending ? 'Ilustrando...' : 'Ilustración IA Real'}
+            </button>
+          </div>
         </form>
 
         {/* Constructor manual + subida */}
@@ -228,7 +258,7 @@ export function DynamicVisualsTab({ scope, selectedLessonVersionId }: Props) {
 
           <form onSubmit={uploadFileMutation.mutate} className="surface-card p-5 space-y-2.5">
             <h3 className="flex items-center gap-2 text-sm font-bold">
-              <Upload className="h-4 w-4 text-[var(--brand-primary)]" /> Subir Imagen, GIF, SVG o PDF Propio
+              <Upload className="h-4 w-4 text-[var(--brand-primary)]" /> Subir Imagen, GIF, SVG, Audio o PDF Propio
             </h3>
             <div className="grid gap-2 sm:grid-cols-2">
               <input
@@ -246,7 +276,7 @@ export function DynamicVisualsTab({ scope, selectedLessonVersionId }: Props) {
             </div>
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,application/pdf,audio/mpeg,audio/webm,audio/ogg,audio/wav"
               onChange={(e) => setUpFile(e.target.files?.[0] ?? null)}
               className="w-full text-xs"
             />
@@ -270,12 +300,17 @@ export function DynamicVisualsTab({ scope, selectedLessonVersionId }: Props) {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {mediaQuery.data.map((m) => (
               <div key={m.id} className="rounded-xl border border-[var(--border-subtle)] bg-white p-3 space-y-2">
-                {m.signed_url && m.media_format !== 'pdf' && (
-                  <img
-                    src={resolveAssetUrl(m.signed_url)}
-                    alt={m.title}
-                    className="h-40 w-full rounded-lg bg-slate-50 object-contain"
-                  />
+                {m.signed_url && m.media_format === 'audio_clip' ? (
+                  <audio controls src={resolveAssetUrl(m.signed_url)} className="w-full py-4" />
+                ) : (
+                  m.signed_url &&
+                  m.media_format !== 'pdf' && (
+                    <img
+                      src={resolveAssetUrl(m.signed_url)}
+                      alt={m.title}
+                      className="h-40 w-full rounded-lg bg-slate-50 object-contain"
+                    />
+                  )
                 )}
                 <div className="flex items-start justify-between gap-2">
                   <div>

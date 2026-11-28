@@ -23,6 +23,7 @@ from app.modules.certificates.schemas import (
 )
 from app.modules.certificates.service import (
     check_verify_rate_limit,
+    claim_eligible_certificates_for_student,
     generate_certificate_pdf_bytes,
     get_certificates_storage_root,
     issue_certificate,
@@ -119,6 +120,23 @@ def list_my_certificates(
         .order_by(Certificate.created_at.desc())
     ).all()
     return [_to_out(c) for c in certs]
+
+
+@router.post("/certificates/claim-eligible", response_model=list[CertificateOut])
+def claim_eligible_certificates(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),
+) -> list[CertificateOut]:
+    issued = claim_eligible_certificates_for_student(db, student=current_user)
+    for cert in issued:
+        dispatch_certificate_pdf(
+            certificate_id=cert.id,
+            background_tasks=background_tasks,
+            session_factory=session_factory,
+        )
+    return [_to_out(c) for c in issued]
 
 
 @router.get("/certificates/{certificate_id}/pdf")

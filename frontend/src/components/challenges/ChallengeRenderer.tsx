@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { apiRequest, resolveAssetUrl } from '../../services/apiClient';
 import type { ChallengePublic } from '../../types/api';
+import { DictationButton, SpeakButton } from './VoiceControls';
 
 function useSignedMediaUrl(mediaId?: string | null) {
   const query = useQuery({
@@ -34,6 +35,8 @@ export function ChallengeRenderer({ challenge, disabled, onSubmit }: Props) {
       return <DecisionSimulationView challenge={challenge} disabled={disabled} onSubmit={onSubmit} />;
     case 'fill_in_blanks':
       return <FillInBlanksView challenge={challenge} disabled={disabled} onSubmit={onSubmit} />;
+    case 'open_response':
+      return <OpenResponseView challenge={challenge} disabled={disabled} onSubmit={onSubmit} />;
     default:
       return <p className="text-sm text-red-600">Tipo de reto no soportado.</p>;
   }
@@ -42,9 +45,12 @@ export function ChallengeRenderer({ challenge, disabled, onSubmit }: Props) {
 function ChallengeHeader({ challenge }: { challenge: ChallengePublic }) {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <span className="rounded-full bg-[var(--bg-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">
-        {challenge.challenge_type.replace(/_/g, ' ')} • {challenge.points} pts
-      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-[var(--bg-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">
+          {challenge.challenge_type.replace(/_/g, ' ')} • {challenge.points} pts
+        </span>
+        <SpeakButton text={challenge.prompt} />
+      </div>
       {challenge.is_safety_critical && (
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
           <ShieldAlert className="h-3.5 w-3.5" /> Protocolo Crítico de Seguridad
@@ -464,6 +470,56 @@ function FillInBlanksView({ challenge, disabled, onSubmit }: Props) {
         className="btn-primary mt-5 w-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
       >
         Comprobar respuestas
+      </button>
+    </div>
+  );
+}
+
+function OpenResponseView({ challenge, disabled, onSubmit }: Props) {
+  const payload = challenge.payload_json as {
+    instruction?: string;
+    min_words?: number;
+    keywords_expected?: string[];
+  };
+  const [responseText, setResponseText] = useState('');
+  const minWords = payload.min_words ?? 8;
+  const wordCount = responseText.trim() ? responseText.trim().split(/\s+/).length : 0;
+
+  return (
+    <div>
+      <ChallengeHeader challenge={challenge} />
+      <p className="mb-2 text-base font-semibold">{challenge.prompt}</p>
+      {payload.instruction && (
+        <div className="mb-3 rounded-xl bg-[var(--bg-accent-soft)] p-3.5 text-sm text-[var(--text-secondary)]">
+          {payload.instruction}
+        </div>
+      )}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs text-[var(--text-secondary)]">
+          Palabras escritas: <strong>{wordCount}</strong> (mínimo sugerido: {minWords})
+        </span>
+        <DictationButton
+          disabled={disabled}
+          onTranscript={(spoken) =>
+            setResponseText((prev) => (prev.trim() ? `${prev.trim()} ${spoken}` : spoken))
+          }
+        />
+      </div>
+      <textarea
+        rows={5}
+        disabled={disabled}
+        value={responseText}
+        onChange={(e) => setResponseText(e.target.value)}
+        placeholder="Desarrolla tu respuesta abierta o utiliza el dictado por voz..."
+        className="w-full rounded-xl border border-[var(--border-subtle)] bg-white p-3.5 text-sm"
+      />
+      <button
+        type="button"
+        disabled={disabled || wordCount < 1}
+        onClick={() => onSubmit({ response_text: responseText.trim() })}
+        className="btn-primary mt-4 w-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
+      >
+        Enviar respuesta para evaluación IA y docente
       </button>
     </div>
   );

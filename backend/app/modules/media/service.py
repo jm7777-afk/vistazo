@@ -26,6 +26,10 @@ ALLOWED_MIME_TO_FORMAT: dict[str, str] = {
     "image/jpeg": "jpg",
     "image/svg+xml": "svg",
     "application/pdf": "pdf",
+    "audio/mpeg": "audio_clip",
+    "audio/webm": "audio_clip",
+    "audio/ogg": "audio_clip",
+    "audio/wav": "audio_clip",
 }
 
 MAX_MEDIA_BYTES = 25 * 1024 * 1024  # 25 MB

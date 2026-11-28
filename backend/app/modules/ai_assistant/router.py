@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.deps import TenantContext, get_current_user, require_permission, require_super_admin
 from app.core.config import get_settings
-from app.db.session import get_db
+from app.core.exceptions import NotFoundError
+from app.db.session import get_db, get_session_factory
 from app.modules.ai_assistant.doc_extractor import extract_text_from_uploaded_document
-from app.modules.ai_assistant.models import AIGenerationJob, AIProviderConfig
+from app.modules.ai_assistant.models import AIGenerationJob, AIProviderConfig, AsyncTaskRecord
 from app.modules.ai_assistant.schemas import (
     AIJobOut,
     AIProviderConfigOut,
@@ -303,6 +307,92 @@ def extract_global_document(
         filename=file.filename or "documento.txt",
         char_count=len(text),
         extracted_text=text,
+    )
+
+
+class AsyncTaskOut(BaseModel):
+    task_id: uuid.UUID
+    task_type: str
+    status: str
+    result_json: dict | None = None
+    error_message: str | None = None
+
+
+def _run_blueprint_task(
+    task_id: uuid.UUID,
+    organization_id: uuid.UUID | None,
+    user_id: uuid.UUID,
+    payload_dict: dict,
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as db:
+        task = db.scalar(select(AsyncTaskRecord).where(AsyncTaskRecord.id == task_id))
+        user = db.scalar(select(User).where(User.id == user_id))
+        if not task or not user:
+            return
+        task.status = "running"
+        db.commit()
+        try:
+            req = GenerateBlueprintRequest.model_validate(payload_dict)
+            res = generate_course_blueprint(db, organization_id=organization_id, user=user, payload=req)
+            task.status = "completed"
+            task.result_json = {
+                "created_course_id": str(res.created_course_id) if res.created_course_id else None,
+                "created_guide_id": str(res.created_guide_id) if res.created_guide_id else None,
+                "course_title": res.blueprint.course_title,
+                "modules_count": len(res.blueprint.modules),
+            }
+            task.completed_at = datetime.now(timezone.utc)
+        except Exception as exc:
+            task.status = "failed"
+            task.error_message = str(exc)[:500]
+            task.completed_at = datetime.now(timezone.utc)
+        db.commit()
+
+
+@router.post("/orgs/{org_id}/ai/generate-blueprint-async", response_model=AsyncTaskOut, status_code=status.HTTP_202_ACCEPTED)
+def queue_org_blueprint_async(
+    payload: GenerateBlueprintRequest,
+    background_tasks: BackgroundTasks,
+    tenant: TenantContext = Depends(require_permission("ai:generate")),
+    db: Session = Depends(get_db),
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),
+) -> AsyncTaskOut:
+    task = AsyncTaskRecord(
+        organization_id=tenant.organization.id,
+        requested_by=tenant.user.id,
+        task_type="blueprint_architect",
+        status="queued",
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    background_tasks.add_task(
+        _run_blueprint_task,
+        task.id,
+        tenant.organization.id,
+        tenant.user.id,
+        payload.model_dump(mode="json"),
+        session_factory,
+    )
+    return AsyncTaskOut(task_id=task.id, task_type=task.task_type, status=task.status)
+
+
+@router.get("/tasks/{task_id}", response_model=AsyncTaskOut)
+def get_async_task_status(
+    task_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AsyncTaskOut:
+    task = db.scalar(select(AsyncTaskRecord).where(AsyncTaskRecord.id == task_id))
+    if not task or (task.requested_by != current_user.id and not current_user.is_super_admin):
+        raise NotFoundError("Tarea asíncrona no encontrada")
+    return AsyncTaskOut(
+        task_id=task.id,
+        task_type=task.task_type,
+        status=task.status,
+        result_json=task.result_json,
+        error_message=task.error_message,
     )
 
 

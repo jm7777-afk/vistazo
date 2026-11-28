@@ -25,6 +25,13 @@ def create_app() -> FastAPI:
     settings = get_settings()
     if settings.environment == "production" and settings.jwt_secret_key.startswith("dev-only-insecure"):
         raise RuntimeError("JWT_SECRET_KEY no puede usar el valor por defecto en producción")
+    if settings.sentry_dsn:
+        try:
+            import sentry_sdk
+
+            sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1)
+        except Exception:
+            pass
     configure_logging()
 
     app = FastAPI(

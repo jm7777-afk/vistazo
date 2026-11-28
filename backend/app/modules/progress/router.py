@@ -15,7 +15,7 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.db.session import get_db
 from app.modules.auth.models import User
 from app.modules.challenges.evaluators import get_challenge_handler
-from app.modules.challenges.models import Challenge
+from app.modules.challenges.models import Challenge, OpenSubmission
 from app.modules.courses.models import Course, Lesson, LessonVersion, Module
 from app.modules.curriculum.models import Classroom, ClassroomMember
 from app.modules.gamification.service import apply_challenge_gamification
@@ -156,6 +156,20 @@ def submit_challenge_attempt(
         attempt_number=int(prev_attempts_count or 0) + 1,
     )
     db.add(attempt)
+    if ch.challenge_type == "open_response":
+        db.add(
+            OpenSubmission(
+                organization_id=org_id,
+                challenge_id=ch.id,
+                user_id=current_user.id,
+                response_text=str(payload.submitted_answer.get("response_text", "")),
+                attachment_note=payload.submitted_answer.get("attachment_note"),
+                max_points=ch.points,
+                ai_suggested_score=eval_result.score_awarded,
+                ai_feedback=str(eval_result.detail.get("rubric_feedback", "")),
+                status="pending_review",
+            )
+        )
     db.flush()
 
     # Recalcular progreso en esta lesson_version_id

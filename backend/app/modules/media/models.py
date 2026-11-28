@@ -23,7 +23,7 @@ class MediaAsset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ),
         CheckConstraint("visibility IN ('public', 'institutional', 'private')", name="ck_media_visibility"),
         CheckConstraint(
-            "media_format IN ('webp_anim', 'mp4_silent', 'webp', 'png', 'jpg', 'svg', 'pdf')",
+            "media_format IN ('webp_anim', 'mp4_silent', 'webp', 'png', 'jpg', 'svg', 'pdf', 'audio_clip')",
             name="ck_media_format",
         ),
         CheckConstraint("processing_status IN ('pending', 'processing', 'ready', 'failed')", name="ck_media_status"),

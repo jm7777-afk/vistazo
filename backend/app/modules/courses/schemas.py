@@ -51,6 +51,8 @@ class LessonCreate(BaseModel):
     estimated_minutes: int = Field(default=5, ge=1, le=120)
     lesson_type: LessonType = "micro_lesson"
     passing_score_pct: int = Field(default=70, ge=0, le=100)
+    randomize_order: bool = False
+    sample_size: int | None = Field(default=None, ge=1, le=50)
     is_safety_critical: bool = False
 
 
@@ -60,6 +62,8 @@ class LessonUpdate(BaseModel):
     estimated_minutes: int | None = Field(default=None, ge=1, le=120)
     lesson_type: LessonType | None = None
     passing_score_pct: int | None = Field(default=None, ge=0, le=100)
+    randomize_order: bool | None = None
+    sample_size: int | None = Field(default=None, ge=1, le=50)
     is_safety_critical: bool | None = None
 
 
@@ -76,6 +80,8 @@ class LessonOut(BaseModel):
     estimated_minutes: int
     lesson_type: str = "micro_lesson"
     passing_score_pct: int = 70
+    randomize_order: bool = False
+    sample_size: int | None = None
     is_safety_critical: bool
     active_lesson_version_id: uuid.UUID | None = None
     active_version_number: int | None = None

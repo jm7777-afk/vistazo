@@ -87,6 +87,10 @@ class Settings:
     smtp_user: str | None = field(default_factory=lambda: os.getenv("SMTP_USER") or None)
     smtp_password: str | None = field(default_factory=lambda: os.getenv("SMTP_PASSWORD") or None)
     smtp_from: str = field(default_factory=lambda: os.getenv("SMTP_FROM", "no-reply@vistazo.org"))
+    image_ai_provider: str = field(default_factory=lambda: os.getenv("IMAGE_AI_PROVIDER", "svg_fallback"))
+    sentry_dsn: str | None = field(default_factory=lambda: os.getenv("SENTRY_DSN") or None)
+    stripe_secret_key: str | None = field(default_factory=lambda: os.getenv("STRIPE_SECRET_KEY") or None)
+    stripe_webhook_secret: str | None = field(default_factory=lambda: os.getenv("STRIPE_WEBHOOK_SECRET") or None)
     redis_url: str | None = field(default_factory=lambda: os.getenv("REDIS_URL") or None)
     frontend_url: str = field(
         default_factory=lambda: os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip("/")

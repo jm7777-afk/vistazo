@@ -184,3 +184,24 @@ class FillInBlanksAnswerKey(BaseModel):
 
 class FillInBlanksSubmission(BaseModel):
     answers: dict[str, str]
+
+
+# ---------------------------------------------------------------------------
+# 7. Respuesta abierta / ensayo con rúbrica IA
+# ---------------------------------------------------------------------------
+class OpenResponsePayload(BaseModel):
+    instruction: str = Field(min_length=3, max_length=600)
+    rubric_guide_id: str | None = None
+    min_words: int = Field(default=5, ge=1, le=500)
+    keywords_expected: list[str] = Field(default_factory=list)
+
+
+class OpenResponseAnswerKey(BaseModel):
+    reference_answer: str = Field(min_length=3, max_length=2000)
+    rubric_criteria: list[str] = Field(default_factory=list)
+    auto_ai_grade: bool = True
+
+
+class OpenResponseSubmission(BaseModel):
+    response_text: str = Field(min_length=2, max_length=10000)
+    attachment_note: str | None = Field(default=None, max_length=1000)

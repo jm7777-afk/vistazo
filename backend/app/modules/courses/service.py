@@ -79,6 +79,8 @@ def build_course_detail(db: Session, course: Course) -> CourseDetailOut:
                     estimated_minutes=les.estimated_minutes,
                     lesson_type=les.lesson_type,
                     passing_score_pct=les.passing_score_pct,
+                    randomize_order=les.randomize_order,
+                    sample_size=les.sample_size,
                     is_safety_critical=les.is_safety_critical,
                     active_lesson_version_id=latest_ver.id if latest_ver else None,
                     active_version_number=latest_ver.version_number if latest_ver else None,
@@ -304,6 +306,8 @@ def create_scoped_lesson(
         estimated_minutes=payload.estimated_minutes,
         lesson_type=payload.lesson_type,
         passing_score_pct=payload.passing_score_pct,
+        randomize_order=payload.randomize_order,
+        sample_size=payload.sample_size,
         is_safety_critical=payload.is_safety_critical,
     )
     db.add(lesson)
@@ -320,6 +324,8 @@ def create_scoped_lesson(
         estimated_minutes=lesson.estimated_minutes,
         lesson_type=lesson.lesson_type,
         passing_score_pct=lesson.passing_score_pct,
+        randomize_order=lesson.randomize_order,
+        sample_size=lesson.sample_size,
         is_safety_critical=lesson.is_safety_critical,
         active_lesson_version_id=v1.id,
         active_version_number=v1.version_number,
@@ -357,6 +363,10 @@ def update_scoped_lesson(
         lesson.lesson_type = payload.lesson_type
     if payload.passing_score_pct is not None:
         lesson.passing_score_pct = payload.passing_score_pct
+    if payload.randomize_order is not None:
+        lesson.randomize_order = payload.randomize_order
+    if payload.sample_size is not None:
+        lesson.sample_size = payload.sample_size
     if payload.is_safety_critical is not None:
         lesson.is_safety_critical = payload.is_safety_critical
     db.commit()
@@ -372,6 +382,8 @@ def update_scoped_lesson(
         estimated_minutes=lesson.estimated_minutes,
         lesson_type=lesson.lesson_type,
         passing_score_pct=lesson.passing_score_pct,
+        randomize_order=lesson.randomize_order,
+        sample_size=lesson.sample_size,
         is_safety_critical=lesson.is_safety_critical,
         active_lesson_version_id=latest_ver.id if latest_ver else None,
         active_version_number=latest_ver.version_number if latest_ver else None,

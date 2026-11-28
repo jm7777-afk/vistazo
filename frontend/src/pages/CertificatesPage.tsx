@@ -1,17 +1,33 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { Award, CheckCircle2, Download, ExternalLink, ShieldX } from 'lucide-react';
-import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
+import { Award, CheckCircle2, Download, ExternalLink, ShieldX, Sparkles } from 'lucide-react';
+import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../components/ui/StatusStates';
 import { API_BASE, apiRequest, getAccessToken } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
 import type { CertificateOut, PublicCertificateVerification } from '../types/api';
 
 export function MyCertificatesPage() {
   const { user } = useAppState();
+  const queryClient = useQueryClient();
+  const [claimMessage, setClaimMessage] = useState<string | null>(null);
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-certificates'],
     queryFn: () => apiRequest<CertificateOut[]>('/certificates/me'),
     enabled: Boolean(user),
+  });
+
+  const claimMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<CertificateOut[]>('/certificates/claim-eligible', { method: 'POST' }),
+    onSuccess: (issued) => {
+      queryClient.invalidateQueries({ queryKey: ['my-certificates'] });
+      if (issued.length > 0) {
+        setClaimMessage(`Se emitieron ${issued.length} certificado(s) nuevo(s) por completar tu unidad/curso.`);
+      } else {
+        setClaimMessage('Verificación completada: aún no tienes nuevas unidades elegibles pendientes de certificado.');
+      }
+    },
   });
 
   if (!user) {
@@ -38,14 +54,27 @@ export function MyCertificatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="surface-card p-6">
-        <h1 className="flex items-center gap-2 text-xl font-bold">
-          <Award className="h-5 w-5 text-[var(--brand-primary)]" /> Mis Certificados Verificables
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Documentos oficiales con hash criptográfico único y código QR público.
-        </p>
+      <div className="surface-card flex flex-wrap items-center justify-between gap-4 p-6">
+        <div>
+          <h1 className="flex items-center gap-2 text-xl font-bold">
+            <Award className="h-5 w-5 text-[var(--brand-primary)]" /> Mis Certificados Verificables
+          </h1>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Documentos oficiales con hash criptográfico único y código QR público.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={claimMutation.isPending}
+          onClick={() => claimMutation.mutate()}
+          className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold disabled:opacity-50"
+        >
+          <Sparkles className="h-4 w-4" />
+          {claimMutation.isPending ? 'Verificando logros...' : 'Verificar y reclamar automáticos'}
+        </button>
       </div>
+
+      {claimMessage && <SuccessBanner message={claimMessage} />}
 
       {!data || data.length === 0 ? (
         <EmptyState

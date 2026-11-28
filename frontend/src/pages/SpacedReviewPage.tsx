@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BatteryCharging, Brain, CheckCircle2, RotateCcw } from 'lucide-react';
+import { BatteryCharging, BookMarked, Brain, CheckCircle2, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { ChallengeRenderer } from '../components/challenges/ChallengeRenderer';
 import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../components/ui/StatusStates';
-import { apiRequest } from '../services/apiClient';
+import { API_BASE, apiRequest, getAccessToken } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
-import type { AttemptResult, ChallengePublic, DueReviewItem, ReviewSessionOut } from '../types/api';
+import type { AttemptResult, ChallengePublic, DueReviewItem, NoteOut, ReviewSessionOut } from '../types/api';
 
 export function SpacedReviewPage() {
   const { user, activeOrg } = useAppState();
@@ -206,6 +206,189 @@ export function SpacedReviewPage() {
           ))}
         </div>
       )}
+
+      <NotesAndFlashcardsSection />
+    </div>
+  );
+}
+
+function NotesAndFlashcardsSection() {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [isFlashcard, setIsFlashcard] = useState(true);
+  const [csvImport, setCsvImport] = useState('');
+  const [showImport, setShowImport] = useState(false);
+
+  const notesQuery = useQuery({
+    queryKey: ['student-notes'],
+    queryFn: () => apiRequest<NoteOut[]>('/notes/me'),
+  });
+
+  const createNote = useMutation({
+    mutationFn: () =>
+      apiRequest<NoteOut>('/notes/me', {
+        method: 'POST',
+        body: JSON.stringify({ title: title.trim(), content: content.trim(), is_flashcard: isFlashcard }),
+      }),
+    onSuccess: () => {
+      setTitle('');
+      setContent('');
+      queryClient.invalidateQueries({ queryKey: ['student-notes'] });
+    },
+  });
+
+  const deleteNote = useMutation({
+    mutationFn: (id: string) => apiRequest<void>(`/notes/me/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['student-notes'] }),
+  });
+
+  const importCsv = useMutation({
+    mutationFn: () =>
+      apiRequest<NoteOut[]>('/notes/me/import-csv', {
+        method: 'POST',
+        body: JSON.stringify({ csv_text: csvImport }),
+      }),
+    onSuccess: () => {
+      setCsvImport('');
+      setShowImport(false);
+      queryClient.invalidateQueries({ queryKey: ['student-notes'] });
+    },
+  });
+
+  const handleExportCsv = async () => {
+    const token = getAccessToken();
+    const res = await fetch(`${API_BASE}/notes/me/flashcards-csv`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vistazo-flashcards-anki.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="surface-card p-6 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <BookMarked className="h-5 w-5 text-[var(--brand-primary)]" /> Apuntes Personales y Flashcards (Anki CSV)
+          </h2>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Guarda resúmenes clave, convierte conceptos en tarjetas de estudio e impórtalas o expórtalas a Anki.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void handleExportCsv()}
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
+          >
+            <Download className="h-3.5 w-3.5" /> Exportar CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowImport((v) => !v)}
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
+          >
+            <Upload className="h-3.5 w-3.5" /> Importar CSV
+          </button>
+        </div>
+      </div>
+
+      {showImport && (
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-slate-50 p-3.5 space-y-2">
+          <p className="text-xs font-semibold">Pega tus tarjetas en formato CSV (Frente,Reverso por línea):</p>
+          <textarea
+            rows={4}
+            value={csvImport}
+            onChange={(e) => setCsvImport(e.target.value)}
+            placeholder={'Front,Back\n"Mitocondria","Central energética de la célula"'}
+            className="w-full rounded-lg border border-[var(--border-subtle)] bg-white p-2.5 text-xs font-mono"
+          />
+          <button
+            type="button"
+            disabled={!csvImport.trim() || importCsv.isPending}
+            onClick={() => importCsv.mutate()}
+            className="btn-primary px-4 py-1.5 text-xs font-semibold disabled:opacity-50"
+          >
+            Confirmar importación CSV
+          </button>
+        </div>
+      )}
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (title.trim() && content.trim()) createNote.mutate();
+        }}
+        className="grid gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-accent-soft)]/40 p-4 sm:grid-cols-3"
+      >
+        <input
+          type="text"
+          required
+          placeholder="Concepto / Frente de tarjeta"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm"
+        />
+        <input
+          type="text"
+          required
+          placeholder="Explicación / Reverso"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm sm:col-span-2"
+        />
+        <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+          <input
+            type="checkbox"
+            checked={isFlashcard}
+            onChange={(e) => setIsFlashcard(e.target.checked)}
+          />
+          Incluir como Flashcard Anki
+        </label>
+        <div className="sm:col-span-2 flex justify-end">
+          <button
+            type="submit"
+            disabled={createNote.isPending}
+            className="btn-primary inline-flex items-center gap-1 px-4 py-2 text-xs font-semibold"
+          >
+            <Plus className="h-3.5 w-3.5" /> Guardar apunte
+          </button>
+        </div>
+      </form>
+
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        {(notesQuery.data ?? []).map((note) => (
+          <div key={note.id} className="rounded-xl border border-[var(--border-subtle)] bg-white p-3.5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold">{note.title}</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)] whitespace-pre-wrap">{note.content}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Eliminar apunte"
+                onClick={() => deleteNote.mutate(note.id)}
+                className="text-slate-400 hover:text-rose-600"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            {note.is_flashcard && (
+              <span className="mt-2 inline-block rounded-full bg-[var(--bg-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--brand-primary)]">
+                Flashcard
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

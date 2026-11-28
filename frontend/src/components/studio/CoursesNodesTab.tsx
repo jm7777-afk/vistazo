@@ -39,6 +39,8 @@ export function CoursesNodesTab({ scope, selectedCourseId, onSelectCourse, onJum
   const [lesMinutes, setLesMinutes] = useState(6);
   const [lesPassPct, setLesPassPct] = useState(75);
   const [lesCritical, setLesCritical] = useState(false);
+  const [lesRandomize, setLesRandomize] = useState(false);
+  const [lesSampleSize, setLesSampleSize] = useState('');
 
   const coursesQuery = useQuery({
     queryKey: ['studio-courses', prefix],
@@ -140,6 +142,8 @@ export function CoursesNodesTab({ scope, selectedCourseId, onSelectCourse, onJum
           lesson_type: lesType,
           passing_score_pct: lesPassPct,
           is_safety_critical: lesCritical,
+          randomize_order: lesRandomize,
+          sample_size: lesSampleSize ? Number(lesSampleSize) : null,
         }),
       });
     },
@@ -425,6 +429,26 @@ export function CoursesNodesTab({ scope, selectedCourseId, onSelectCourse, onJum
                     onChange={(e) => setLesCritical(e.target.checked)}
                   />
                   Protocolo crítico de seguridad
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={lesRandomize}
+                    onChange={(e) => setLesRandomize(e.target.checked)}
+                  />
+                  Aleatorizar preguntas por alumno
+                </label>
+                <label className="flex items-center gap-1">
+                  Muestra N:
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    placeholder="Todas"
+                    value={lesSampleSize}
+                    onChange={(e) => setLesSampleSize(e.target.value)}
+                    className="w-16 rounded border px-1.5 py-0.5 text-xs"
+                  />
                 </label>
               </div>
             </form>
