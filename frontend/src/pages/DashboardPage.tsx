@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Award, Battery, Bell, BookOpen, Brain, Flame, GraduationCap, Medal, Radio, School, Timer, Trophy } from 'lucide-react';
+import { Award, Battery, Bell, BookOpen, Brain, Compass, Flame, GraduationCap, HeartHandshake, Medal, Radio, School, Timer, Trophy, Wand2 } from 'lucide-react';
+import { AnimatedNumber, AnimatedProgressBar } from '../components/ui/MotionPrimitives';
 import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
@@ -85,41 +86,111 @@ export function DashboardPage() {
     );
   }
 
+  const totalLessonsCount = progressQuery.data?.lessons.length ?? 0;
+  const completedLessonsCount = progressQuery.data?.lessons.filter((l) => l.status === 'completed').length ?? 0;
+  const completionPct = totalLessonsCount > 0 ? Math.round((completedLessonsCount / totalLessonsCount) * 100) : 0;
+  const canAuthor = Boolean(
+    user.is_super_admin ||
+      user.account_type === 'educator' ||
+      (activeOrg && ['instructor', 'coordinator'].includes(activeOrg.role_code))
+  );
+  const totalXp = gamificationQuery.data?.total_xp ?? 0;
+  const currentLevel = Math.floor(totalXp / 100) + 1;
+  const levelProgressPct = totalXp % 100;
+
   return (
     <div className="space-y-6">
-      <section className="surface-card bg-gradient-to-r from-[var(--bg-surface)] to-[var(--bg-accent-soft)] p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="surface-card relative overflow-hidden bg-gradient-to-r from-[var(--bg-surface)] via-[var(--bg-surface)] to-[var(--bg-accent-soft)] p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="flex items-center gap-1.5 text-xs font-bold uppercase text-[var(--brand-primary)]">
+          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[var(--brand-primary)]">
             <Timer className="h-4 w-4" /> Tu próxima misión ({user.daily_goal_minutes ?? 5} min)
           </p>
-          <h2 className="mt-1 text-base font-bold">
+          <h2 className="mt-1 text-lg font-extrabold">
             {(dueReviewsQuery.data?.length ?? 0) > 0
-              ? `Tienes ${dueReviewsQuery.data?.length} retos listos para repaso SM-2 hoy`
+              ? `Tienes ${dueReviewsQuery.data?.length} retos listos para repaso inteligente SM-2 hoy`
               : 'Mantén tu racha completando una microlección hoy'}
           </h2>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            Nivel {currentLevel} • {100 - levelProgressPct} XP para subir de nivel
+          </p>
         </div>
         <Link
           to={(dueReviewsQuery.data?.length ?? 0) > 0 ? '/reviews' : '/catalog'}
-          className="btn-primary inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold"
+          className="btn-primary inline-flex shrink-0 items-center justify-center gap-1.5 px-5 py-2.5 text-xs font-bold"
         >
           <Brain className="h-4 w-4" />
           {(dueReviewsQuery.data?.length ?? 0) > 0 ? 'Repasar ahora' : 'Explorar lección'}
         </Link>
       </section>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Centro de accesos rápidos claro y visual */}
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <Link
+          to="/catalog"
+          className="surface-card interactive-card flex items-center gap-3 p-3.5 text-xs"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-accent-soft)] text-[var(--brand-primary)]">
+            <Compass className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="font-bold">Catálogo Libre</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">Explorar cursos abiertos</p>
+          </div>
+        </Link>
         <Link
           to="/unirse"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-slate-50"
+          className="surface-card interactive-card flex items-center gap-3 p-3.5 text-xs"
         >
-          <School className="h-4 w-4 text-[var(--brand-primary)]" /> Unirme a un Aula por Código
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <School className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="font-bold">Unirme por Código</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">Ingresar a aula con QR o VZT</p>
+          </div>
         </Link>
         <Link
           to="/vivo"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-slate-50"
+          className="surface-card interactive-card flex items-center gap-3 p-3.5 text-xs"
         >
-          <Radio className="h-4 w-4 text-indigo-600" /> Entrar a Clase en Vivo
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+            <Radio className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="font-bold">Clase en Vivo</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">Quiz interactivo en sala</p>
+          </div>
         </Link>
+        {canAuthor ? (
+          <Link
+            to="/studio"
+            className="surface-card interactive-card flex items-center gap-3 p-3.5 text-xs"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <Wand2 className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="font-bold">Estudio Docente IA</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">Crear materias y retos</p>
+            </div>
+          </Link>
+        ) : (
+          <Link
+            to="/familia"
+            className="surface-card interactive-card flex items-center gap-3 p-3.5 text-xs"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-700">
+              <HeartHandshake className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="font-bold">Código Familiar</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">Compartir progreso con tutor</p>
+            </div>
+          </Link>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -134,7 +205,7 @@ export function DashboardPage() {
               setPushStatus('Recordatorios activados en este dispositivo.');
             })();
           }}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-slate-50"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2 text-xs font-semibold transition hover:bg-slate-50"
         >
           <Bell className="h-4 w-4 text-amber-600" /> {pushStatus || 'Activar avisos de repaso'}
         </button>
@@ -167,27 +238,38 @@ export function DashboardPage() {
         </p>
 
         {gamificationQuery.data && (
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-xl bg-[var(--bg-accent-soft)] p-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--brand-primary)]">
-                <Trophy className="h-4 w-4" /> XP Total
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-[var(--bg-accent-soft)] p-3.5 transition hover:scale-[1.02]">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--brand-primary)]">
+                  <Trophy className="h-4 w-4" /> XP Total (Nv. {currentLevel})
+                </div>
+                <p className="mt-1 text-2xl font-extrabold">
+                  <AnimatedNumber value={gamificationQuery.data.total_xp} />
+                </p>
               </div>
-              <p className="mt-1 text-xl font-extrabold">{gamificationQuery.data.total_xp}</p>
-            </div>
-            <div className="rounded-xl bg-amber-50 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
-                <Flame className="h-4 w-4" /> Racha
+              <div className="rounded-xl bg-amber-50 p-3.5 transition hover:scale-[1.02]">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+                  <Flame className="h-4 w-4" /> Racha
+                </div>
+                <p className="mt-1 text-2xl font-extrabold">
+                  <AnimatedNumber value={gamificationQuery.data.current_streak_days} suffix=" días" />
+                </p>
               </div>
-              <p className="mt-1 text-xl font-extrabold">{gamificationQuery.data.current_streak_days} días</p>
-            </div>
-            <div className="rounded-xl bg-emerald-50 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
-                <Battery className="h-4 w-4" /> Energía
+              <div className="rounded-xl bg-emerald-50 p-3.5 transition hover:scale-[1.02]">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+                  <Battery className="h-4 w-4" /> Energía
+                </div>
+                <p className="mt-1 text-2xl font-extrabold">
+                  {gamificationQuery.data.current_energy}/{gamificationQuery.data.max_energy}
+                </p>
               </div>
-              <p className="mt-1 text-xl font-extrabold">
-                {gamificationQuery.data.current_energy}/{gamificationQuery.data.max_energy}
-              </p>
             </div>
+            <AnimatedProgressBar
+              percent={completionPct}
+              label={`Avance de lecciones (${completedLessonsCount}/${totalLessonsCount})`}
+              tone="emerald"
+            />
           </div>
         )}
       </section>

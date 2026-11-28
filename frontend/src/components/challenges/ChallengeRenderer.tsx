@@ -101,7 +101,7 @@ function VisualConceptCardView({ challenge, disabled, onSubmit }: Props) {
             type="button"
             disabled={disabled}
             onClick={() => setSelected(opt.id)}
-            className={`w-full rounded-xl border p-3.5 text-left text-sm font-medium transition ${
+            className={`interactive-card w-full rounded-xl border p-3.5 text-left text-sm font-medium transition ${
               selected === opt.id
                 ? 'border-[var(--brand-primary)] bg-[var(--bg-accent-soft)] ring-2 ring-[var(--brand-primary)]/30'
                 : 'border-[var(--border-subtle)] bg-white hover:bg-slate-50'

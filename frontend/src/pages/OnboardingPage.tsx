@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Compass, Layers, Sparkles, Timer, Wand2 } from 'lucide-react';
+import { AnimatedProgressBar } from '../components/ui/MotionPrimitives';
 import { ErrorBanner } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
@@ -54,14 +55,12 @@ export function OnboardingPage() {
           <span>Paso {step} de 3</span>
         </div>
 
-        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-          <div className="h-full bg-[var(--brand-primary)] transition-all" style={{ width: `${(step / 3) * 100}%` }} />
-        </div>
+        <AnimatedProgressBar percent={(step / 3) * 100} />
 
         {saveMutation.error && <ErrorBanner message={(saveMutation.error as Error).message} />}
 
         {step === 1 && (
-          <div className="space-y-4">
+          <div className="vzt-scale-in space-y-4">
             <h1 className="text-xl font-bold">
               {isEducator
                 ? `¡Bienvenido, Prof. ${user.full_name}! ¿Cómo prefieres construir tu contenido?`
@@ -124,7 +123,7 @@ export function OnboardingPage() {
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
+          <div className="vzt-scale-in space-y-4">
             <h1 className="flex items-center gap-2 text-xl font-bold">
               <Layers className="h-5 w-5 text-[var(--brand-primary)]" />{' '}
               {isEducator ? 'Perfil visual de tus cursos y meta de trabajo' : 'Elige tu perfil visual y meta diaria'}
@@ -191,7 +190,7 @@ export function OnboardingPage() {
         )}
 
         {step === 3 && (
-          <div className="space-y-4">
+          <div className="vzt-scale-in space-y-4">
             <h1 className="flex items-center gap-2 text-xl font-bold">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />{' '}
               {isEducator

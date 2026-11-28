@@ -78,15 +78,58 @@ export function StudioPage() {
     );
   }
 
-  const tabs: { id: TabId; label: string; icon: typeof Sparkles }[] = [
-    { id: 'blueprint', label: 'Arquitecto IA & Carga', icon: Wand2 },
-    { id: 'courses', label: 'Materias y Nodos', icon: Layers },
-    { id: 'guides', label: 'Guías, Temarios y Pensum', icon: BookMarked },
-    { id: 'challenges', label: 'Retos y Pruebas Fuertes', icon: Flame },
-    { id: 'bank', label: 'Banco y Calificación', icon: Database },
-    { id: 'visuals', label: 'Imágenes Dinámicas', icon: Image },
-    { id: 'analytics', label: 'Analíticas, QR y Vivo', icon: BarChart3 },
+  const tabs: { id: TabId; num: string; label: string; tip: string; icon: typeof Sparkles }[] = [
+    {
+      id: 'blueprint',
+      num: '1',
+      label: 'Arquitecto IA & Carga',
+      tip: 'Sube PDF/DOCX o describe tu materia y deja que la IA estructure módulos y guías.',
+      icon: Wand2,
+    },
+    {
+      id: 'courses',
+      num: '2',
+      label: 'Materias y Nodos',
+      tip: 'Edita cursos, organiza módulos, configura notas mínimas y exámenes aleatorios.',
+      icon: Layers,
+    },
+    {
+      id: 'guides',
+      num: '3',
+      label: 'Guías, Temarios y Pensum',
+      tip: 'Redacta o genera metodologías de estudio, pensums oficiales y expórtalos en PDF.',
+      icon: BookMarked,
+    },
+    {
+      id: 'challenges',
+      num: '4',
+      label: 'Retos y Pruebas Fuertes',
+      tip: 'Crea retos de 7 tipos (visuales, simulación o respuesta abierta), publica o lanza Clase en Vivo.',
+      icon: Flame,
+    },
+    {
+      id: 'bank',
+      num: '5',
+      label: 'Banco y Calificación',
+      tip: 'Guarda preguntas reutilizables por tema, inyéctalas en exámenes y califica respuestas abiertas.',
+      icon: Database,
+    },
+    {
+      id: 'visuals',
+      num: '6',
+      label: 'Imágenes Dinámicas',
+      tip: 'Genera diagramas SVG interactivos, ilustraciones IA o sube clips de audio y archivos.',
+      icon: Image,
+    },
+    {
+      id: 'analytics',
+      num: '7',
+      label: 'Analíticas, QR y Vivo',
+      tip: 'Crea aulas, descarga códigos QR de invitación y monitorea el rendimiento del grupo.',
+      icon: BarChart3,
+    },
   ];
+  const activeTabInfo = tabs.find((t) => t.id === tab);
 
   return (
     <div className="space-y-6">
@@ -133,28 +176,45 @@ export function StudioPage() {
         )}
       </div>
 
-      {/* Navegación de pestañas */}
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((item) => {
-          const Icon = item.icon;
-          const active = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold transition ${
-                active
-                  ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white shadow-sm'
-                  : 'border-[var(--border-subtle)] bg-white text-[var(--text-primary)] hover:bg-slate-50'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          );
-        })}
+      {/* Navegación paso a paso del Estudio */}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap gap-2">
+          {tabs.map((item) => {
+            const Icon = item.icon;
+            const active = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-bold transition-all duration-150 ${
+                  active
+                    ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white shadow-sm scale-[1.02]'
+                    : 'border-[var(--border-subtle)] bg-white text-[var(--text-primary)] hover:border-[var(--brand-primary)]/40 hover:bg-slate-50'
+                }`}
+              >
+                <span
+                  className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-extrabold ${
+                    active ? 'bg-white/20 text-white' : 'bg-[var(--bg-accent-soft)] text-[var(--brand-primary)]'
+                  }`}
+                >
+                  {item.num}
+                </span>
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+        {activeTabInfo && (
+          <div className="vzt-fade-up rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-accent-soft)]/55 px-4 py-2.5 text-xs text-[var(--text-secondary)]">
+            <strong className="text-[var(--brand-primary)]">Paso {activeTabInfo.num} — {activeTabInfo.label}:</strong>{' '}
+            {activeTabInfo.tip}
+          </div>
+        )}
       </div>
+
+      <div key={tab} className="vzt-fade-up">
 
       {tab === 'blueprint' && (
         <BlueprintTab
@@ -197,6 +257,7 @@ export function StudioPage() {
       {tab === 'visuals' && <DynamicVisualsTab scope={scope} selectedLessonVersionId={selectedLvId} />}
 
       {tab === 'analytics' && <AnalyticsInvitesTab scope={scope} />}
+      </div>
     </div>
   );
 }
