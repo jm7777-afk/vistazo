@@ -130,41 +130,135 @@ function MatchingView({ challenge, disabled, onSubmit }: Props) {
     right_items: { id: string; text: string }[];
   };
   const [pairs, setPairs] = useState<Record<string, string>>({});
+  const [activeLeftId, setActiveLeftId] = useState<string | null>(payload.left_items[0]?.id ?? null);
 
   const allPaired = payload.left_items.every((item) => Boolean(pairs[item.id]));
+
+  const findLeftForRight = (rightId: string) =>
+    Object.entries(pairs).find(([, rId]) => rId === rightId)?.[0] ?? null;
+
+  const pairCountIndex = (leftId: string) => {
+    const idx = payload.left_items.findIndex((item) => item.id === leftId);
+    return idx >= 0 ? idx + 1 : 0;
+  };
+
+  const handleRightClick = (rightId: string) => {
+    if (disabled) return;
+    const existingLeft = findLeftForRight(rightId);
+    if (existingLeft && !activeLeftId) {
+      setPairs((prev) => {
+        const copy = { ...prev };
+        delete copy[existingLeft];
+        return copy;
+      });
+      return;
+    }
+    const targetLeft =
+      activeLeftId || payload.left_items.find((l) => !pairs[l.id])?.id || null;
+    if (!targetLeft) return;
+
+    setPairs((prev) => {
+      const updated = { ...prev };
+      // Liberar si ese rightId estaba usado en otro par
+      for (const [k, v] of Object.entries(updated)) {
+        if (v === rightId) delete updated[k];
+      }
+      updated[targetLeft] = rightId;
+      const nextUnpaired = payload.left_items.find((l) => l.id !== targetLeft && !updated[l.id]);
+      setActiveLeftId(nextUnpaired?.id ?? null);
+      return updated;
+    });
+  };
 
   return (
     <div>
       <ChallengeHeader challenge={challenge} />
-      <p className="mb-4 text-base font-semibold">{challenge.prompt}</p>
-      <p className="mb-3 text-xs text-[var(--text-secondary)]">{payload.instruction}</p>
-      <div className="space-y-3">
-        {payload.left_items.map((left) => (
-          <div key={left.id} className="flex flex-col gap-2 rounded-xl border border-[var(--border-subtle)] p-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="font-semibold text-sm">{left.text}</span>
-            <select
-              disabled={disabled}
-              value={pairs[left.id] ?? ''}
-              onChange={(e) => setPairs((prev) => ({ ...prev, [left.id]: e.target.value }))}
-              className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm"
-            >
-              <option value="">Selecciona correspondencia...</option>
-              {payload.right_items.map((right) => (
-                <option key={right.id} value={right.id}>
-                  {right.text}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
+      <p className="mb-1 text-base font-semibold">{challenge.prompt}</p>
+      <p className="mb-4 text-xs text-[var(--text-secondary)]">
+        {payload.instruction} — <strong>Toca un elemento de la izquierda y luego su pareja a la derecha.</strong>
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          {payload.left_items.map((left, idx) => {
+            const isSelected = activeLeftId === left.id;
+            const pairedRightId = pairs[left.id];
+            return (
+              <button
+                key={left.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  if (pairedRightId) {
+                    setPairs((prev) => {
+                      const next = { ...prev };
+                      delete next[left.id];
+                      return next;
+                    });
+                  }
+                  setActiveLeftId(left.id);
+                }}
+                className={`interactive-card flex w-full items-center justify-between gap-2 rounded-xl border p-3 text-left text-sm font-semibold ${
+                  isSelected
+                    ? 'border-[var(--brand-primary)] bg-[var(--bg-accent-soft)] ring-2 ring-[var(--brand-primary)]/30'
+                    : pairedRightId
+                      ? 'border-emerald-300 bg-emerald-50/70 text-emerald-950'
+                      : 'border-[var(--border-subtle)] bg-white'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[11px] font-extrabold text-white">
+                    {idx + 1}
+                  </span>
+                  {left.text}
+                </span>
+                {pairedRightId && (
+                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                    Conectado
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-2">
+          {payload.right_items.map((right) => {
+            const ownerLeftId = findLeftForRight(right.id);
+            const ownerNum = ownerLeftId ? pairCountIndex(ownerLeftId) : 0;
+            return (
+              <button
+                key={right.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => handleRightClick(right.id)}
+                className={`interactive-card flex w-full items-center justify-between gap-2 rounded-xl border p-3 text-left text-sm font-medium ${
+                  ownerLeftId
+                    ? 'border-emerald-300 bg-emerald-50/70 text-emerald-950'
+                    : activeLeftId
+                      ? 'border-dashed border-[var(--brand-primary)]/60 bg-white hover:bg-[var(--bg-accent-soft)]/50'
+                      : 'border-[var(--border-subtle)] bg-white'
+                }`}
+              >
+                <span>{right.text}</span>
+                {ownerNum > 0 && (
+                  <span className="vzt-pop flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-extrabold text-white">
+                    {ownerNum}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
       <button
         type="button"
         disabled={disabled || !allPaired}
         onClick={() => onSubmit({ pairs })}
         className="btn-primary mt-5 w-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
       >
-        Comprobar emparejamiento
+        Comprobar emparejamiento ({Object.keys(pairs).length}/{payload.left_items.length})
       </button>
     </div>
   );
@@ -190,11 +284,16 @@ function SequenceOrderingView({ challenge, disabled, onSubmit }: Props) {
       <ChallengeHeader challenge={challenge} />
       <p className="mb-1 text-base font-semibold">{challenge.prompt}</p>
       <p className="mb-4 text-xs text-[var(--text-secondary)]">{payload.instruction}</p>
-      <ol className="space-y-2">
+      <ol className="space-y-2.5">
         {items.map((item, idx) => (
-          <li key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-white p-3">
-            <span className="text-sm font-medium">
-              <strong className="mr-2 text-[var(--brand-primary)]">{idx + 1}.</strong>
+          <li
+            key={item.id}
+            className="interactive-card flex items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-white p-3"
+          >
+            <span className="flex items-center gap-2.5 text-sm font-semibold">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--bg-accent-soft)] text-xs font-extrabold text-[var(--brand-primary)]">
+                {idx + 1}
+              </span>
               {item.text}
             </span>
             <div className="flex gap-1">
@@ -392,7 +491,7 @@ function DecisionSimulationView({ challenge, disabled, onSubmit }: Props) {
         </div>
       ) : (
         <div>
-          <p className="mb-3 font-semibold text-sm">{node?.narrative}</p>
+          <p key={currentNodeId} className="vzt-scale-in mb-3 font-semibold text-sm">{node?.narrative}</p>
           <div className="space-y-2">
             {(node?.choices ?? []).map((ch) => (
               <button
@@ -400,7 +499,7 @@ function DecisionSimulationView({ challenge, disabled, onSubmit }: Props) {
                 type="button"
                 disabled={disabled}
                 onClick={() => handleChoice(ch.id, ch.next_node_id)}
-                className="w-full rounded-xl border border-[var(--border-subtle)] bg-white p-3.5 text-left text-sm font-medium hover:border-[var(--brand-primary)] hover:bg-[var(--bg-accent-soft)]"
+                className="interactive-card w-full rounded-xl border border-[var(--border-subtle)] bg-white p-3.5 text-left text-sm font-medium hover:border-[var(--brand-primary)] hover:bg-[var(--bg-accent-soft)]"
               >
                 {ch.text}
               </button>
@@ -419,7 +518,22 @@ function FillInBlanksView({ challenge, disabled, onSubmit }: Props) {
     blanks: { id: string; label: string }[];
   };
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [activeBlankId, setActiveBlankId] = useState<string | null>(payload.blanks[0]?.id ?? null);
   const allFilled = payload.blanks.every((b) => Boolean(answers[b.id]?.trim()));
+  const usedWords = new Set(Object.values(answers).filter(Boolean));
+
+  const handlePickWord = (word: string) => {
+    if (disabled) return;
+    const targetId =
+      activeBlankId || payload.blanks.find((b) => !answers[b.id])?.id || payload.blanks[0]?.id;
+    if (!targetId) return;
+    setAnswers((prev) => {
+      const next = { ...prev, [targetId]: word };
+      const nextEmpty = payload.blanks.find((b) => b.id !== targetId && !next[b.id]);
+      setActiveBlankId(nextEmpty?.id ?? null);
+      return next;
+    });
+  };
 
   return (
     <div>
@@ -428,30 +542,78 @@ function FillInBlanksView({ challenge, disabled, onSubmit }: Props) {
       <div className="mb-4 rounded-xl bg-[var(--bg-accent-soft)] p-4 text-sm leading-relaxed">
         {payload.template}
       </div>
-      {payload.word_bank.length > 0 && (
-        <p className="mb-3 text-xs text-[var(--text-secondary)]">
-          Banco sugerido: <strong>{payload.word_bank.join(' · ')}</strong>
-        </p>
-      )}
-      <div className="grid gap-3 sm:grid-cols-3">
-        {payload.blanks.map((blank) => (
-          <label key={blank.id} className="block text-xs font-semibold text-[var(--text-secondary)]">
-            {blank.label} ({`{{${blank.id}}}`})
-            {payload.word_bank.length > 0 ? (
-              <select
-                disabled={disabled}
-                value={answers[blank.id] ?? ''}
-                onChange={(e) => setAnswers((prev) => ({ ...prev, [blank.id]: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm text-[var(--text-primary)]"
-              >
-                <option value="">Elegir...</option>
-                {payload.word_bank.map((w) => (
-                  <option key={w} value={w}>
-                    {w}
-                  </option>
-                ))}
-              </select>
-            ) : (
+
+      {payload.word_bank.length > 0 ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {payload.blanks.map((blank) => {
+              const val = answers[blank.id] ?? '';
+              const isFocused = activeBlankId === blank.id;
+              return (
+                <button
+                  key={blank.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    if (val) {
+                      setAnswers((prev) => {
+                        const copy = { ...prev };
+                        delete copy[blank.id];
+                        return copy;
+                      });
+                    }
+                    setActiveBlankId(blank.id);
+                  }}
+                  className={`interactive-card flex flex-col items-start rounded-xl border p-3 text-left transition ${
+                    isFocused
+                      ? 'border-[var(--brand-primary)] bg-[var(--bg-accent-soft)] ring-2 ring-[var(--brand-primary)]/25'
+                      : val
+                        ? 'border-emerald-300 bg-emerald-50/70'
+                        : 'border-dashed border-[var(--border-subtle)] bg-white'
+                  }`}
+                >
+                  <span className="text-[11px] font-bold uppercase text-[var(--text-secondary)]">
+                    {blank.label}
+                  </span>
+                  <span className={`mt-1 text-sm font-bold ${val ? 'text-emerald-900' : 'text-slate-400'}`}>
+                    {val || 'Toca palabra abajo...'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-[var(--text-secondary)]">
+              Toca las fichas para completar los espacios (toca un espacio lleno para quitar):
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {payload.word_bank.map((word) => {
+                const isUsed = usedWords.has(word);
+                return (
+                  <button
+                    key={word}
+                    type="button"
+                    disabled={disabled || isUsed}
+                    onClick={() => handlePickWord(word)}
+                    className={`rounded-full border px-3.5 py-1.5 text-xs font-bold transition ${
+                      isUsed
+                        ? 'border-slate-200 bg-slate-100 text-slate-400 line-through'
+                        : 'interactive-card border-[var(--brand-primary)]/40 bg-white text-[var(--brand-primary)] hover:bg-[var(--bg-accent-soft)]'
+                    }`}
+                  >
+                    {word}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {payload.blanks.map((blank) => (
+            <label key={blank.id} className="block text-xs font-semibold text-[var(--text-secondary)]">
+              {blank.label} ({`{{${blank.id}}}`})
               <input
                 disabled={disabled}
                 type="text"
@@ -459,10 +621,11 @@ function FillInBlanksView({ challenge, disabled, onSubmit }: Props) {
                 onChange={(e) => setAnswers((prev) => ({ ...prev, [blank.id]: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2 text-sm text-[var(--text-primary)]"
               />
-            )}
-          </label>
-        ))}
-      </div>
+            </label>
+          ))}
+        </div>
+      )}
+
       <button
         type="button"
         disabled={disabled || !allFilled}

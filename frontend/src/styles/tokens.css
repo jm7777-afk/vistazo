@@ -249,6 +249,30 @@ textarea:focus-visible {
   animation: vzt-confetti-fly 850ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* 3D Flashcard Flip */
+.vzt-flip-scene {
+  perspective: 1100px;
+}
+
+.vzt-flip-card {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.vzt-flip-card.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.vzt-flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.vzt-flip-back {
+  transform: rotateY(180deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vzt-fade-up,
   .vzt-scale-in,
@@ -257,7 +281,8 @@ textarea:focus-visible {
   .vzt-float,
   .vzt-skeleton,
   .vzt-progress-bar,
-  .vzt-confetti-dot {
+  .vzt-confetti-dot,
+  .vzt-flip-card {
     animation: none !important;
     transition: none !important;
   }

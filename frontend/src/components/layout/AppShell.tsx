@@ -5,6 +5,7 @@ import { flushOfflineAttempts, listOfflineAttempts } from '../../pwa/offlineQueu
 import { apiRequest } from '../../services/apiClient';
 import { useAppState } from '../../stores/AppContext';
 import type { UIProfile } from '../../types/api';
+import { QuickHelpFab } from '../ui/QuickHelpFab';
 
 const PROFILE_CYCLE: UIProfile[] = ['pro', 'youth', 'kids'];
 const PROFILE_LABEL: Record<UIProfile, string> = {
@@ -258,6 +259,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
+      <QuickHelpFab />
     </div>
   );
 }

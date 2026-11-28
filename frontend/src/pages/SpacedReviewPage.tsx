@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BatteryCharging, BookMarked, Brain, CheckCircle2, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { ArrowRight, BatteryCharging, BookMarked, Brain, CheckCircle2, Download, Layers, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { ChallengeRenderer } from '../components/challenges/ChallengeRenderer';
+import { AnimatedProgressBar, CelebrationBurst } from '../components/ui/MotionPrimitives';
 import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../components/ui/StatusStates';
 import { API_BASE, apiRequest, getAccessToken } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
@@ -96,16 +97,20 @@ export function SpacedReviewPage() {
       status: 'published',
     };
     const isLast = itemIndex === activeSession.items.length - 1;
+    const sessionPct = Math.round(((itemIndex + (lastAttempt ? 1 : 0)) / activeSession.items.length) * 100);
 
     return (
       <div className="mx-auto max-w-2xl space-y-5">
-        <div className="surface-card flex items-center justify-between p-4 text-xs font-semibold">
-          <span>
-            Repaso {itemIndex + 1} de {activeSession.items.length} ({currentItem.item_state})
-          </span>
-          <span>Intervalo previo: {currentItem.interval_days} días</span>
+        <div className="surface-card p-5 space-y-2.5">
+          <div className="flex items-center justify-between text-xs font-semibold">
+            <span className="rounded-full bg-[var(--bg-accent-soft)] px-2.5 py-0.5 font-bold text-[var(--brand-primary)]">
+              Repaso {itemIndex + 1} de {activeSession.items.length} ({currentItem.item_state})
+            </span>
+            <span className="text-[var(--text-secondary)]">Intervalo previo: {currentItem.interval_days} días</span>
+          </div>
+          <AnimatedProgressBar percent={sessionPct} label="Avance de sesión SM-2" />
         </div>
-        <div className="surface-card p-6">
+        <div key={currentItem.challenge_id} className="surface-card vzt-scale-in p-6">
           <ChallengeRenderer
             key={currentItem.challenge_id}
             challenge={asChallenge}
@@ -113,10 +118,19 @@ export function SpacedReviewPage() {
             onSubmit={(answer) => submitAttempt.mutate({ challengeId: currentItem.challenge_id, answer })}
           />
           {lastAttempt && (
-            <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-accent-soft)] p-4">
-              <p className="font-bold text-sm">
-                {lastAttempt.is_correct ? '¡Recuperación exitosa!' : 'Refuerzo programado'}
-              </p>
+            <div
+              className={`mt-4 rounded-xl border p-4 ${
+                lastAttempt.is_correct
+                  ? 'vzt-pop border-emerald-300 bg-emerald-50 text-emerald-950'
+                  : 'vzt-shake border-amber-300 bg-amber-50 text-amber-950'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-bold text-sm">
+                  {lastAttempt.is_correct ? '¡Recuperación exitosa!' : 'Refuerzo programado'}
+                </p>
+                <CelebrationBurst active={lastAttempt.is_correct} badgeText="+XP SM-2" />
+              </div>
               <p className="mt-1 text-sm">{lastAttempt.pedagogical_explanation}</p>
               {!isLast ? (
                 <button
@@ -219,11 +233,16 @@ function NotesAndFlashcardsSection() {
   const [isFlashcard, setIsFlashcard] = useState(true);
   const [csvImport, setCsvImport] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [studyDeckOpen, setStudyDeckOpen] = useState(false);
+  const [deckIdx, setDeckIdx] = useState(0);
+  const [deckFlipped, setDeckFlipped] = useState(false);
 
   const notesQuery = useQuery({
     queryKey: ['student-notes'],
     queryFn: () => apiRequest<NoteOut[]>('/notes/me'),
   });
+  const flashcards = (notesQuery.data ?? []).filter((n) => n.is_flashcard);
+  const activeCard = flashcards[deckIdx] ?? null;
 
   const createNote = useMutation({
     mutationFn: () =>
@@ -284,6 +303,20 @@ function NotesAndFlashcardsSection() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {flashcards.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setDeckIdx(0);
+                setDeckFlipped(false);
+                setStudyDeckOpen((v) => !v);
+              }}
+              className="btn-primary inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              {studyDeckOpen ? 'Cerrar Tarjetas 3D' : `Modo Tarjetas 3D (${flashcards.length})`}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleExportCsv()}
@@ -300,6 +333,54 @@ function NotesAndFlashcardsSection() {
           </button>
         </div>
       </div>
+
+      {studyDeckOpen && activeCard && (
+        <div className="vzt-scale-in rounded-2xl border border-[var(--brand-primary)]/30 bg-[var(--bg-accent-soft)]/50 p-5 space-y-4">
+          <div className="flex items-center justify-between text-xs font-bold text-[var(--brand-primary)]">
+            <span>
+              Tarjeta {deckIdx + 1} de {flashcards.length}
+            </span>
+            <span className="text-[var(--text-secondary)]">Toca la tarjeta para voltearla</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setDeckFlipped((f) => !f)}
+            className="vzt-flip-scene block w-full text-left focus:outline-none"
+          >
+            <div className={`vzt-flip-card relative min-h-[170px] w-full ${deckFlipped ? 'is-flipped' : ''}`}>
+              <div className="vzt-flip-face absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-white p-6 text-center shadow-md">
+                <span className="rounded-full bg-[var(--bg-accent-soft)] px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--brand-primary)]">
+                  Frente / Concepto
+                </span>
+                <p className="mt-3 text-lg font-extrabold">{activeCard.title}</p>
+                <p className="mt-2 text-[11px] text-[var(--text-secondary)]">Haz clic para ver la explicación</p>
+              </div>
+              <div className="vzt-flip-face vzt-flip-back absolute inset-0 flex flex-col items-center justify-center rounded-2xl border-2 border-[var(--brand-primary)] bg-gradient-to-br from-[var(--bg-surface)] to-[var(--bg-accent-soft)] p-6 text-center shadow-md">
+                <span className="rounded-full bg-[var(--brand-primary)] px-2.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                  Reverso / Respuesta
+                </span>
+                <p className="mt-3 text-sm font-semibold leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
+                  {activeCard.content}
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDeckFlipped(false);
+                setDeckIdx((i) => (i + 1) % flashcards.length);
+              }}
+              className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold"
+            >
+              Siguiente tarjeta <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {showImport && (
         <div className="rounded-xl border border-[var(--border-subtle)] bg-slate-50 p-3.5 space-y-2">

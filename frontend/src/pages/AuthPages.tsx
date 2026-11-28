@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { GraduationCap, Presentation } from 'lucide-react';
+import { Eye, EyeOff, GraduationCap, Presentation } from 'lucide-react';
 import { ErrorBanner, SuccessBanner } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
@@ -13,6 +13,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +36,7 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-5">
-      <div className="surface-card p-6">
+      <div className="surface-card vzt-scale-in p-6">
         <img
           src="/brand/vistazo-logo.png"
           alt="Vistazo — Aprende de un vistazo"
@@ -65,13 +66,23 @@ export function LoginPage() {
           </label>
           <label className="block text-sm font-medium">
             Contraseña
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border-subtle)] px-3 py-2.5 text-sm"
-            />
+            <div className="relative mt-1">
+              <input
+                type={showPass ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border-subtle)] px-3 py-2.5 pr-10 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((v) => !v)}
+                aria-label={showPass ? 'Ocultar contraseña' : 'Ver contraseña'}
+                className="absolute right-2.5 top-2.5 text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+              >
+                {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </label>
           <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 text-sm font-semibold">
             {loading ? 'Verificando...' : 'Ingresar'}
@@ -152,7 +163,7 @@ export function RegisterPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <div className="surface-card p-6">
+      <div className="surface-card vzt-scale-in p-6">
         <img
           src="/brand/vistazo-logo.png"
           alt="Vistazo — Aprende de un vistazo"
@@ -183,7 +194,7 @@ export function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setAccountType('student')}
-                className={`rounded-xl border p-3.5 text-left transition ${
+                className={`interactive-card rounded-xl border p-3.5 text-left transition ${
                   accountType === 'student'
                     ? 'border-[var(--brand-primary)] bg-[var(--bg-accent-soft)] ring-2 ring-[var(--brand-primary)]/20'
                     : 'border-[var(--border-subtle)] bg-white hover:bg-slate-50'
@@ -199,7 +210,7 @@ export function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setAccountType('educator')}
-                className={`rounded-xl border p-3.5 text-left transition ${
+                className={`interactive-card rounded-xl border p-3.5 text-left transition ${
                   accountType === 'educator'
                     ? 'border-[var(--brand-primary)] bg-[var(--bg-accent-soft)] ring-2 ring-[var(--brand-primary)]/20'
                     : 'border-[var(--border-subtle)] bg-white hover:bg-slate-50'
