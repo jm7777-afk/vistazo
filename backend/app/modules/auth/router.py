@@ -9,14 +9,27 @@ from app.core.exceptions import UnauthorizedError
 from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.modules.auth.models import User
-from app.modules.auth.schemas import LoginRequest, RegisterRequest, TokenResponse, UpdatePreferencesRequest, UserSummary
+from app.modules.auth.schemas import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    UpdatePreferencesRequest,
+    UserSummary,
+    VerifyTokenRequest,
+)
 from app.modules.auth.service import (
     anonymize_user_account,
     authenticate_user,
     build_user_summary,
     register_user,
+    request_password_reset,
+    reset_password_with_token,
     revoke_session,
     rotate_refresh_token,
+    verify_email_with_token,
+    verify_parental_consent_with_token,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -121,6 +134,47 @@ def logout(
     return res
 
 
+@router.post("/forgot-password")
+@limiter.limit("10/minute")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    request_password_reset(
+        db, email=payload.email, ip_address=request.client.host if request.client else None
+    )
+    return {"message": "Si el correo está registrado, enviaremos instrucciones de recuperación."}
+
+
+@router.post("/reset-password")
+@limiter.limit("10/minute")
+def reset_password(
+    payload: ResetPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    reset_password_with_token(
+        db,
+        raw_token=payload.token,
+        new_password=payload.new_password,
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"message": "Contraseña actualizada correctamente."}
+
+
+@router.post("/verify-email")
+def verify_email(payload: VerifyTokenRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+    verify_email_with_token(db, raw_token=payload.token)
+    return {"message": "Correo verificado correctamente."}
+
+
+@router.post("/verify-parental-consent")
+def verify_parental_consent(payload: VerifyTokenRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+    verify_parental_consent_with_token(db, raw_token=payload.token)
+    return {"message": "Autorización parental verificada correctamente."}
+
+
 @router.get("/me", response_model=UserSummary)
 def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> UserSummary:
     return build_user_summary(db, current_user)
@@ -154,3 +208,44 @@ def anonymize_me(
     res.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")
     res.delete_cookie(CSRF_COOKIE_NAME, path="/")
     return res
+
+
+@router.post("/forgot-password")
+@limiter.limit("10/minute")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    request_password_reset(
+        db, email=payload.email, ip_address=request.client.host if request.client else None
+    )
+    return {"message": "Si el correo está registrado, enviaremos instrucciones de recuperación."}
+
+
+@router.post("/reset-password")
+@limiter.limit("10/minute")
+def reset_password(
+    payload: ResetPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    reset_password_with_token(
+        db,
+        raw_token=payload.token,
+        new_password=payload.new_password,
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"message": "Contraseña actualizada correctamente."}
+
+
+@router.post("/verify-email")
+def verify_email(payload: VerifyTokenRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+    verify_email_with_token(db, raw_token=payload.token)
+    return {"message": "Correo verificado correctamente."}
+
+
+@router.post("/verify-parental-consent")
+def verify_parental_consent(payload: VerifyTokenRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+    verify_parental_consent_with_token(db, raw_token=payload.token)
+    return {"message": "Autorización parental verificada correctamente."}

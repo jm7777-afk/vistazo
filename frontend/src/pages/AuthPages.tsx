@@ -83,6 +83,10 @@ export function LoginPage() {
           <Link to="/register" className="font-semibold text-[var(--brand-primary)] underline">
             Regístrate aquí
           </Link>
+          {' • '}
+          <Link to="/recuperar-cuenta" className="font-semibold text-[var(--brand-primary)] underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
         </p>
       </div>
     </div>

@@ -136,7 +136,30 @@ class ClassroomOut(BaseModel):
     ends_at: date | None
     energy_enabled: bool
     max_energy: int
+    invite_code: str | None = None
+    invite_enabled: bool = True
     status: str
+
+
+class JoinClassroomRequest(BaseModel):
+    invite_code: str = Field(min_length=4, max_length=24)
+
+
+class InvitePreviewOut(BaseModel):
+    classroom_id: uuid.UUID
+    classroom_name: str
+    classroom_code: str
+    organization_id: uuid.UUID
+    organization_name: str
+    invite_code: str
+    invite_enabled: bool
+
+
+class JoinClassroomResponse(BaseModel):
+    status: str
+    organization_id: uuid.UUID
+    classroom_id: uuid.UUID
+    classroom_name: str
 
 
 class EnrollStudentRequest(BaseModel):

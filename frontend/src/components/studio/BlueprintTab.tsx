@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileUp, Layers, Sparkles, Wand2 } from 'lucide-react';
 import { ErrorBanner, SuccessBanner } from '../ui/StatusStates';
 import { apiRequest } from '../../services/apiClient';
-import type { GenerateBlueprintResponse, PedagogyStyle, UIProfile } from '../../types/api';
+import type { DocumentExtractResponse, GenerateBlueprintResponse, PedagogyStyle, UIProfile } from '../../types/api';
 import { readTextDocument, scopePrefix, type StudioScope } from './studioHelpers';
 
 interface Props {
@@ -49,9 +49,28 @@ export function BlueprintTab({ scope, onCourseCreated }: Props) {
     },
   });
 
+  const [extractError, setExtractError] = useState<string | null>(null);
+
   const handleFileLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setExtractError(null);
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.pdf') || lower.endsWith('.docx')) {
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const extracted = await apiRequest<DocumentExtractResponse>(`${prefix}/ai/extract-document`, {
+          method: 'POST',
+          body: form,
+        });
+        setSourceText(extracted.extracted_text);
+        setUploadName(`${extracted.filename} (${extracted.char_count} chars extraídos)`);
+      } catch (err) {
+        setExtractError((err as Error).message);
+      }
+      return;
+    }
     const text = await readTextDocument(file);
     setSourceText(text);
     setUploadName(file.name);
@@ -77,6 +96,7 @@ export function BlueprintTab({ scope, onCourseCreated }: Props) {
         </div>
 
         {blueprintMutation.error && <ErrorBanner message={(blueprintMutation.error as Error).message} />}
+        {extractError && <ErrorBanner message={extractError} />}
         {preview?.created_course_id && (
           <SuccessBanner
             message={`Curso "${preview.blueprint.course_title}" guardado con ${preview.blueprint.modules.length} módulos y guía metodológica (${preview.provider}). Ya puedes editarlo en Materias y Nodos.`}
@@ -163,11 +183,11 @@ export function BlueprintTab({ scope, onCourseCreated }: Props) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold">
                 <FileUp className="h-4 w-4 text-[var(--brand-primary)]" />
-                Cargar archivo de temario / guía (opcional)
+                Cargar archivo de temario / guía (.pdf, .docx, .txt, .md)
               </span>
               <input
                 type="file"
-                accept=".txt,.md,.csv,.json"
+                accept=".pdf,.docx,.txt,.md,.csv,.json"
                 onChange={(e) => void handleFileLoad(e)}
                 className="text-xs"
               />

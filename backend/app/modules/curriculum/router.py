@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Response, status
+from reportlab.graphics import renderSVG
+from reportlab.graphics.barcode.qr import QrCodeWidget
+from reportlab.graphics.shapes import Drawing
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import TenantContext, get_tenant_context, require_permission
+from app.api.deps import TenantContext, get_current_user, get_tenant_context, require_permission
+from app.core.config import get_settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationDomainError
 from app.db.session import get_db
 from app.modules.audit.service import record_audit_log
@@ -39,15 +44,42 @@ from app.modules.curriculum.schemas import (
     CurriculumVersionOut,
     CurriculumVersionUpdate,
     EnrollStudentRequest,
+    InvitePreviewOut,
+    JoinClassroomRequest,
+    JoinClassroomResponse,
     ProgramCreate,
     ProgramOut,
     ProgramUpdate,
 )
 from app.modules.progress.models import LessonProgress
 from app.modules.rbac.models import Role
-from app.modules.tenants.models import OrganizationMember
+from app.modules.tenants.models import Organization, OrganizationMember
 
 router = APIRouter(prefix="/orgs/{org_id}", tags=["curriculum"])
+public_router = APIRouter(tags=["curriculum"])
+
+
+def _generate_invite_code() -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    suffix = "".join(secrets.choice(alphabet) for _ in range(6))
+    return f"VZT-{suffix}"
+
+
+def _to_classroom_out(c: Classroom) -> ClassroomOut:
+    return ClassroomOut(
+        id=c.id,
+        organization_id=c.organization_id,
+        curriculum_version_id=c.curriculum_version_id,
+        code=c.code,
+        name=c.name,
+        starts_at=c.starts_at,
+        ends_at=c.ends_at,
+        energy_enabled=c.energy_enabled,
+        max_energy=c.max_energy,
+        invite_code=c.invite_code,
+        invite_enabled=c.invite_enabled,
+        status=c.status,
+    )
 
 
 def _ensure_classroom_access(db: Session, tenant: TenantContext, classroom_id: uuid.UUID) -> Classroom:
@@ -636,21 +668,7 @@ def list_classrooms(
             .order_by(Classroom.created_at.desc())
         ).all()
 
-    return [
-        ClassroomOut(
-            id=c.id,
-            organization_id=c.organization_id,
-            curriculum_version_id=c.curriculum_version_id,
-            code=c.code,
-            name=c.name,
-            starts_at=c.starts_at,
-            ends_at=c.ends_at,
-            energy_enabled=c.energy_enabled,
-            max_energy=c.max_energy,
-            status=c.status,
-        )
-        for c in rows
-    ]
+    return [_to_classroom_out(c) for c in rows]
 
 
 @router.post("/classrooms", response_model=ClassroomOut, status_code=status.HTTP_201_CREATED)
@@ -687,22 +705,49 @@ def create_classroom(
         ends_at=payload.ends_at,
         energy_enabled=payload.energy_enabled,
         max_energy=payload.max_energy,
+        invite_code=_generate_invite_code(),
+        invite_enabled=True,
     )
     db.add(classroom)
     db.commit()
     db.refresh(classroom)
-    return ClassroomOut(
-        id=classroom.id,
-        organization_id=classroom.organization_id,
-        curriculum_version_id=classroom.curriculum_version_id,
-        code=classroom.code,
-        name=classroom.name,
-        starts_at=classroom.starts_at,
-        ends_at=classroom.ends_at,
-        energy_enabled=classroom.energy_enabled,
-        max_energy=classroom.max_energy,
-        status=classroom.status,
-    )
+    return _to_classroom_out(classroom)
+
+
+@router.post("/classrooms/{classroom_id}/rotate-invite", response_model=ClassroomOut)
+def rotate_classroom_invite(
+    classroom_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("classroom:manage")),
+    db: Session = Depends(get_db),
+) -> ClassroomOut:
+    classroom = _ensure_classroom_access(db, tenant, classroom_id)
+    classroom.invite_code = _generate_invite_code()
+    classroom.invite_enabled = True
+    db.commit()
+    db.refresh(classroom)
+    return _to_classroom_out(classroom)
+
+
+@router.get("/classrooms/{classroom_id}/invite-qr")
+def get_classroom_invite_qr(
+    classroom_id: uuid.UUID,
+    tenant: TenantContext = Depends(require_permission("classroom:view_assigned")),
+    db: Session = Depends(get_db),
+) -> Response:
+    classroom = _ensure_classroom_access(db, tenant, classroom_id)
+    if not classroom.invite_code:
+        classroom.invite_code = _generate_invite_code()
+        db.commit()
+    settings = get_settings()
+    join_url = f"{settings.frontend_url}/unirse/{classroom.invite_code}"
+    qr = QrCodeWidget(join_url)
+    bounds = qr.getBounds()
+    width = bounds[2] - bounds[0]
+    height = bounds[3] - bounds[1]
+    drawing = Drawing(220, 220, transform=[220.0 / width, 0, 0, 220.0 / height, 0, 0])
+    drawing.add(qr)
+    svg_text = renderSVG.drawToString(drawing)
+    return Response(content=svg_text, media_type="image/svg+xml")
 
 
 @router.patch("/classrooms/{classroom_id}", response_model=ClassroomOut)
@@ -891,3 +936,104 @@ def list_classroom_students(
             )
         )
     return output
+
+
+@public_router.get("/classrooms/invite/{invite_code}", response_model=InvitePreviewOut)
+def preview_classroom_invite(invite_code: str, db: Session = Depends(get_db)) -> InvitePreviewOut:
+    """Vista previa pública del aula asociada a un código de invitación."""
+    row = db.execute(
+        select(Classroom, Organization)
+        .join(Organization, Classroom.organization_id == Organization.id)
+        .where(
+            func.upper(Classroom.invite_code) == invite_code.strip().upper(),
+            Classroom.deleted_at.is_(None),
+            Organization.deleted_at.is_(None),
+        )
+    ).first()
+    if not row:
+        raise NotFoundError("Código de invitación no encontrado")
+    classroom, org = row
+    return InvitePreviewOut(
+        classroom_id=classroom.id,
+        classroom_name=classroom.name,
+        classroom_code=classroom.code,
+        organization_id=org.id,
+        organization_name=org.name,
+        invite_code=classroom.invite_code or invite_code.upper(),
+        invite_enabled=classroom.invite_enabled,
+    )
+
+
+@public_router.post("/classrooms/join", response_model=JoinClassroomResponse)
+def join_classroom_by_invite(
+    payload: JoinClassroomRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JoinClassroomResponse:
+    """Permite a un estudiante unirse automáticamente a un aula e institución mediante código."""
+    classroom = db.scalar(
+        select(Classroom).where(
+            func.upper(Classroom.invite_code) == payload.invite_code.strip().upper(),
+            Classroom.deleted_at.is_(None),
+        )
+    )
+    if not classroom or not classroom.invite_enabled:
+        raise NotFoundError("Código de invitación inválido o deshabilitado")
+
+    org_member = db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == classroom.organization_id,
+            OrganizationMember.user_id == current_user.id,
+            OrganizationMember.deleted_at.is_(None),
+        )
+    )
+    if not org_member:
+        student_role = db.scalar(
+            select(Role).where(Role.code == "student", Role.organization_id.is_(None), Role.deleted_at.is_(None))
+        )
+        if not student_role:
+            raise NotFoundError("Rol estudiante no disponible")
+        db.add(
+            OrganizationMember(
+                organization_id=classroom.organization_id,
+                user_id=current_user.id,
+                role_id=student_role.id,
+            )
+        )
+        db.flush()
+
+    cm = db.scalar(
+        select(ClassroomMember).where(
+            ClassroomMember.classroom_id == classroom.id,
+            ClassroomMember.user_id == current_user.id,
+            ClassroomMember.deleted_at.is_(None),
+        )
+    )
+    if not cm:
+        db.add(
+            ClassroomMember(
+                organization_id=classroom.organization_id,
+                classroom_id=classroom.id,
+                user_id=current_user.id,
+            )
+        )
+        status_label = "joined"
+    else:
+        status_label = "already_enrolled"
+
+    record_audit_log(
+        db,
+        action="classroom.joined_by_invite",
+        resource_type="classroom",
+        resource_id=classroom.id,
+        organization_id=classroom.organization_id,
+        actor_user_id=current_user.id,
+        details={"status": status_label},
+    )
+    db.commit()
+    return JoinClassroomResponse(
+        status=status_label,
+        organization_id=classroom.organization_id,
+        classroom_id=classroom.id,
+        classroom_name=classroom.name,
+    )

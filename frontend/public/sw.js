@@ -32,3 +32,14 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request).catch(() => caches.match(event.request))
   );
 });
+
+self.addEventListener('push', (event) => {
+  const payload = event.data ? event.data.json() : {};
+  const title = payload.title || 'Vistazo LMS';
+  const options = {
+    body: payload.body || 'Tienes repasos espaciados pendientes hoy.',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/favicon-64.png',
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});

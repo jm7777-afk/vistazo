@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError, UnauthorizedError, ValidationDomainError
+from app.core.mailer import send_email_notification
 from app.core.security import (
     create_access_token,
     generate_opaque_token,
@@ -18,7 +19,13 @@ from app.core.security import (
     verify_password,
 )
 from app.modules.audit.service import record_audit_log
-from app.modules.auth.models import ParentalConsent, User, UserSession
+from app.modules.auth.models import (
+    EmailVerificationToken,
+    ParentalConsent,
+    PasswordResetToken,
+    User,
+    UserSession,
+)
 from app.modules.auth.schemas import MembershipSummary, RegisterRequest, UserSummary
 from app.modules.rbac.models import Role
 from app.modules.tenants.models import Organization, OrganizationMember
@@ -75,6 +82,7 @@ def build_user_summary(db: Session, user: User) -> UserSummary:
         preferred_ui_profile=user.preferred_ui_profile,
         daily_goal_minutes=user.daily_goal_minutes,
         onboarding_completed=user.onboarding_completed,
+        email_verified=user.email_verified,
         is_super_admin=user.is_super_admin,
         created_at=user.created_at,
         memberships=memberships,
@@ -114,15 +122,26 @@ def register_user(db: Session, data: RegisterRequest, ip_address: str | None) ->
     db.add(user)
     db.flush()
 
+    parent_raw_token: str | None = None
     if is_minor:
+        parent_raw_token = generate_opaque_token()
         consent = ParentalConsent(
             minor_user_id=user.id,
             guardian_name=data.guardian_name.strip(),  # type: ignore[union-attr]
             guardian_email=str(data.guardian_email).lower(),
             consent_status="pending",
-            verification_token_hash=hash_token(generate_opaque_token()),
+            verification_token_hash=hash_token(parent_raw_token),
         )
         db.add(consent)
+
+    verify_raw = generate_opaque_token()
+    db.add(
+        EmailVerificationToken(
+            user_id=user.id,
+            token_hash=hash_token(verify_raw),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=3),
+        )
+    )
 
     workspace_id: uuid.UUID | None = None
     if data.account_type == "educator":
@@ -170,6 +189,26 @@ def register_user(db: Session, data: RegisterRequest, ip_address: str | None) ->
     )
     db.commit()
     db.refresh(user)
+    settings = get_settings()
+    send_email_notification(
+        to_email=user.email,
+        subject="Verifica tu correo en Vistazo",
+        body_text=(
+            f"Hola {user.full_name},\n\n"
+            f"Verifica tu cuenta en Vistazo usando este enlace:\n"
+            f"{settings.frontend_url}/recuperar-cuenta?verifyEmail={verify_raw}\n"
+        ),
+    )
+    if is_minor and parent_raw_token and data.guardian_email:
+        send_email_notification(
+            to_email=str(data.guardian_email).lower(),
+            subject="Autorización parental requerida — Vistazo",
+            body_text=(
+                f"Hola {data.guardian_name},\n\n"
+                f"{user.full_name} registró una cuenta en Vistazo. Autoriza aquí:\n"
+                f"{settings.frontend_url}/recuperar-cuenta?verifyParent={parent_raw_token}\n"
+            ),
+        )
     return user
 
 
@@ -333,4 +372,93 @@ def anonymize_user_account(db: Session, user: User, ip_address: str | None) -> N
         actor_user_id=user.id,
         ip_address=ip_address,
     )
+    db.commit()
+
+
+def request_password_reset(db: Session, *, email: str, ip_address: str | None) -> None:
+    """Genera token temporal de recuperación de contraseña sin revelar existencia del correo."""
+    user = db.scalar(
+        select(User).where(User.email == email.strip().lower(), User.deleted_at.is_(None), User.is_active.is_(True))
+    )
+    if not user:
+        return
+    raw_token = generate_opaque_token()
+    db.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=hash_token(raw_token),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+        )
+    )
+    record_audit_log(
+        db,
+        action="auth.password_reset_requested",
+        resource_type="user",
+        resource_id=user.id,
+        actor_user_id=user.id,
+        ip_address=ip_address,
+    )
+    db.commit()
+    settings = get_settings()
+    send_email_notification(
+        to_email=user.email,
+        subject="Restablecer contraseña — Vistazo",
+        body_text=(
+            f"Hola {user.full_name},\n\n"
+            f"Usa este enlace (válido por 30 minutos) para restablecer tu contraseña:\n"
+            f"{settings.frontend_url}/recuperar-cuenta?resetToken={raw_token}\n"
+        ),
+    )
+
+
+def reset_password_with_token(
+    db: Session, *, raw_token: str, new_password: str, ip_address: str | None
+) -> None:
+    """Restablece la contraseña usando un token válido y revoca todas las sesiones activas."""
+    row = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == hash_token(raw_token)))
+    now = datetime.now(timezone.utc)
+    if not row or row.used_at is not None or _ensure_aware_utc(row.expires_at) <= now:
+        raise ValidationDomainError("El enlace de recuperación es inválido o ha expirado", code="invalid_reset_token")
+
+    user = db.scalar(select(User).where(User.id == row.user_id, User.deleted_at.is_(None), User.is_active.is_(True)))
+    if not user:
+        raise ValidationDomainError("Usuario no disponible", code="invalid_reset_token")
+
+    user.password_hash = hash_password(new_password)
+    row.used_at = now
+    db.execute(
+        update(UserSession).where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None)).values(revoked_at=now)
+    )
+    record_audit_log(
+        db,
+        action="auth.password_reset_completed",
+        resource_type="user",
+        resource_id=user.id,
+        actor_user_id=user.id,
+        ip_address=ip_address,
+    )
+    db.commit()
+
+
+def verify_email_with_token(db: Session, *, raw_token: str) -> None:
+    """Marca el correo electrónico como verificado usando token opaco."""
+    row = db.scalar(select(EmailVerificationToken).where(EmailVerificationToken.token_hash == hash_token(raw_token)))
+    now = datetime.now(timezone.utc)
+    if not row or row.verified_at is not None or _ensure_aware_utc(row.expires_at) <= now:
+        raise ValidationDomainError("Token de verificación inválido o expirado", code="invalid_verify_token")
+    user = db.scalar(select(User).where(User.id == row.user_id, User.deleted_at.is_(None)))
+    if not user:
+        raise ValidationDomainError("Usuario no encontrado", code="invalid_verify_token")
+    user.email_verified = True
+    row.verified_at = now
+    db.commit()
+
+
+def verify_parental_consent_with_token(db: Session, *, raw_token: str) -> None:
+    """Marca el consentimiento parental de un menor como verificado."""
+    consent = db.scalar(select(ParentalConsent).where(ParentalConsent.verification_token_hash == hash_token(raw_token)))
+    if not consent or consent.consent_status == "revoked":
+        raise ValidationDomainError("Token de autorización parental inválido", code="invalid_parental_token")
+    consent.consent_status = "verified"
+    consent.verified_at = datetime.now(timezone.utc)
     db.commit()

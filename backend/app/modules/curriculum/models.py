@@ -157,6 +157,8 @@ class Classroom(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     ends_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     energy_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     max_energy: Mapped[int] = mapped_column(SmallInteger, default=5, nullable=False)
+    invite_code: Mapped[str | None] = mapped_column(String(24), unique=True, nullable=True)
+    invite_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
 
 

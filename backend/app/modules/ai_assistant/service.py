@@ -26,18 +26,21 @@ from app.modules.ai_assistant.prompts import (
     BLUEPRINT_ARCHITECT_SYSTEM_PROMPT,
     DYNAMIC_VISUAL_SYSTEM_PROMPT,
     LESSON_GENERATOR_SYSTEM_PROMPT,
+    REMEDIATION_SYSTEM_PROMPT,
     SOCRATIC_TUTOR_SYSTEM_PROMPT,
     STRONG_EXAM_SYSTEM_PROMPT,
     STUDY_GUIDE_SYSTEM_PROMPT,
     build_blueprint_user_prompt,
     build_dynamic_visual_user_prompt,
     build_lesson_generator_user_prompt,
+    build_remediation_user_prompt,
     build_socratic_user_prompt,
     build_strong_exam_user_prompt,
     build_study_guide_user_prompt,
 )
 from app.modules.ai_assistant.providers import run_with_fallback
 from app.modules.ai_assistant.schemas import (
+    AdaptiveRemediationResponse,
     BlueprintPayload,
     DynamicVisualPayload,
     GenerateBlueprintRequest,
@@ -843,6 +846,17 @@ def generate_socratic_hint(
     provider_name, model_name, max_tokens, daily_limit = get_active_provider_config(db)
     _enforce_daily_quota(db, course.organization_id, daily_limit)
 
+    guides = db.scalars(
+        select(StudyGuide)
+        .where(
+            StudyGuide.course_id == course.id,
+            StudyGuide.status == "published",
+            StudyGuide.deleted_at.is_(None),
+        )
+        .limit(2)
+    ).all()
+    guide_ctx = "\n".join(f"{g.title}: {g.content_markdown[:500]}" for g in guides)
+
     user_prompt = build_socratic_user_prompt(
         education_level=course.education_level,
         ui_profile=course.ui_profile,
@@ -851,6 +865,7 @@ def generate_socratic_hint(
         authorized_explanation=ch.pedagogical_explanation,
         attempt_count=int(failed_attempts),
         student_question=clean_q,
+        study_guide_context=guide_ctx,
     )
 
     settings = get_settings()
@@ -891,4 +906,83 @@ def generate_socratic_hint(
         used_fallback=llm_res.used_fallback,
         failed_attempts=int(failed_attempts),
         safety_reminder=ch.is_safety_critical,
+    )
+
+
+def generate_adaptive_remediation(
+    db: Session,
+    *,
+    user: User,
+    course_id: uuid.UUID | None,
+    missed_prompts: list[str],
+) -> AdaptiveRemediationResponse:
+    """Genera una micro-guía personalizada de refuerzo tras errores en evaluación o repaso."""
+    clean_missed = [strip_unsafe_markup(p) for p in missed_prompts if strip_unsafe_markup(p)]
+    if not clean_missed:
+        raise ValidationDomainError("Debes indicar al menos un reto fallado para generar refuerzo")
+
+    guide_ctx = ""
+    org_id: uuid.UUID | None = None
+    if course_id is not None:
+        course = db.scalar(select(Course).where(Course.id == course_id, Course.deleted_at.is_(None)))
+        if course:
+            org_id = course.organization_id
+            guides = db.scalars(
+                select(StudyGuide)
+                .where(
+                    StudyGuide.course_id == course.id,
+                    StudyGuide.status == "published",
+                    StudyGuide.deleted_at.is_(None),
+                )
+                .limit(2)
+            ).all()
+            guide_ctx = "\n".join(f"{g.title}: {g.content_markdown[:500]}" for g in guides)
+
+    provider_name, model_name, max_tokens, daily_limit = get_active_provider_config(db)
+    _enforce_daily_quota(db, org_id, daily_limit)
+
+    user_prompt = build_remediation_user_prompt(missed_prompts=clean_missed, study_guide_context=guide_ctx)
+    settings = get_settings()
+    t0 = time.monotonic()
+    llm_res = run_with_fallback(
+        provider_name=provider_name,
+        model_name=model_name,
+        system_prompt=REMEDIATION_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        max_tokens=min(max_tokens, 1200),
+        timeout_seconds=settings.ai_timeout_seconds,
+    )
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    job = AIGenerationJob(
+        organization_id=org_id,
+        requested_by=user.id,
+        job_type="adaptive_remediation",
+        provider=llm_res.provider,
+        model_name=llm_res.model_name,
+        status="fallback_used" if llm_res.used_fallback else "completed",
+        prompt_tokens=llm_res.prompt_tokens,
+        completion_tokens=llm_res.completion_tokens,
+        latency_ms=latency_ms,
+        error_code=llm_res.fallback_reason,
+        completed_at=datetime.now(timezone.utc),
+    )
+    db.add(job)
+    db.commit()
+
+    try:
+        parsed = extract_json_object(llm_res.text)
+    except ValidationDomainError:
+        parsed = {
+            "title": "Plan de Refuerzo",
+            "remediation_markdown": strip_unsafe_markup(llm_res.text),
+            "action_steps": ["Repasar retos fallados en /reviews"],
+        }
+
+    return AdaptiveRemediationResponse(
+        job_id=job.id,
+        provider=llm_res.provider,
+        title=str(parsed.get("title") or "Plan de Refuerzo Personalizado"),
+        remediation_markdown=str(parsed.get("remediation_markdown") or ""),
+        action_steps=[str(x) for x in (parsed.get("action_steps") or [])][:6],
     )

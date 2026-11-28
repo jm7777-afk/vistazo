@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BookMarked, Flame, Image, Layers, Sparkles, Wand2 } from 'lucide-react';
+import { BarChart3, BookMarked, Flame, Image, Layers, Sparkles, Wand2 } from 'lucide-react';
+import { AnalyticsInvitesTab } from '../components/studio/AnalyticsInvitesTab';
 import { BlueprintTab } from '../components/studio/BlueprintTab';
 import { ChallengesExamTab } from '../components/studio/ChallengesExamTab';
 import { CoursesNodesTab } from '../components/studio/CoursesNodesTab';
@@ -11,7 +12,7 @@ import { EmptyState } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
 
-type TabId = 'blueprint' | 'courses' | 'guides' | 'challenges' | 'visuals';
+type TabId = 'blueprint' | 'courses' | 'guides' | 'challenges' | 'visuals' | 'analytics';
 
 export function StudioPage() {
   const { user, activeOrg } = useAppState();
@@ -81,6 +82,7 @@ export function StudioPage() {
     { id: 'guides', label: 'Guías, Temarios y Pensum', icon: BookMarked },
     { id: 'challenges', label: 'Retos y Pruebas Fuertes', icon: Flame },
     { id: 'visuals', label: 'Imágenes Dinámicas', icon: Image },
+    { id: 'analytics', label: 'Analíticas, QR y Vivo', icon: BarChart3 },
   ];
 
   return (
@@ -180,6 +182,8 @@ export function StudioPage() {
       )}
 
       {tab === 'visuals' && <DynamicVisualsTab scope={scope} selectedLessonVersionId={selectedLvId} />}
+
+      {tab === 'analytics' && <AnalyticsInvitesTab scope={scope} />}
     </div>
   );
 }

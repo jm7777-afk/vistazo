@@ -26,6 +26,7 @@ from app.modules.media.service import (
     validate_media_upload,
     verify_media_signature,
 )
+from app.modules.media.storage import load_media_bytes, save_media_bytes
 from app.modules.tenants.models import OrganizationMember
 
 router = APIRouter(tags=["media"])
@@ -250,6 +251,7 @@ def _upload_file_impl(
 
     final_key = raw_key
     final_mime = mime_type
+    final_bytes = content
     thumb_key: str | None = None
     svg_markup: str | None = None
     if mime_type.lower() == "image/svg+xml":
@@ -261,6 +263,9 @@ def _upload_file_impl(
             final_key = webp_key
             final_mime = "image/webp"
             thumb_key = thumb_rel
+            final_bytes = (storage_root / final_key).read_bytes()
+
+    save_media_bytes(final_key, final_bytes, final_mime)
 
     parsed_tags = [t.strip() for t in tags.split(",") if t.strip()]
     eff_visibility = "public" if organization_id is None else ("institutional" if visibility == "public" else visibility)
@@ -277,7 +282,7 @@ def _upload_file_impl(
         mime_type=final_mime,
         storage_key=final_key,
         thumbnail_key=thumb_key,
-        byte_size=(storage_root / final_key).stat().st_size,
+        byte_size=max(1, len(final_bytes)),
         processing_status="ready",
         svg_markup=svg_markup,
     )
@@ -476,8 +481,8 @@ def serve_signed_media_file(
     if asset.svg_markup:
         return Response(content=asset.svg_markup, media_type="image/svg+xml")
 
-    file_path = get_local_media_root() / asset.storage_key
-    if not file_path.exists():
+    loaded = load_media_bytes(asset.storage_key)
+    if loaded is None:
         svg = (
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">'
             f'<rect width="320" height="180" rx="12" fill="#e6f2f5"/>'
@@ -486,7 +491,7 @@ def serve_signed_media_file(
         )
         return Response(content=svg, media_type="image/svg+xml")
 
-    return Response(content=file_path.read_bytes(), media_type=asset.mime_type)
+    return Response(content=loaded, media_type=asset.mime_type)
 
 
 @router.get("/library/me", response_model=list[LibraryItemOut])

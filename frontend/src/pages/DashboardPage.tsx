@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Award, Battery, BookOpen, Brain, Flame, GraduationCap, Medal, Timer, Trophy } from 'lucide-react';
+import { Award, Battery, Bell, BookOpen, Brain, Flame, GraduationCap, Medal, Radio, School, Timer, Trophy } from 'lucide-react';
 import { EmptyState, ErrorBanner, LoadingState } from '../components/ui/StatusStates';
 import { apiRequest } from '../services/apiClient';
 import { useAppState } from '../stores/AppContext';
@@ -11,11 +12,19 @@ import type {
   GamificationProfile,
   LeaderboardEntry,
   LessonProgressOut,
+  NotificationsSummaryOut,
   StudentCompetencyOut,
 } from '../types/api';
 
 export function DashboardPage() {
   const { user, activeOrg } = useAppState();
+  const [pushStatus, setPushStatus] = useState<string | null>(null);
+
+  const notificationsQuery = useQuery({
+    queryKey: ['my-notifications', user?.id],
+    queryFn: () => apiRequest<NotificationsSummaryOut>('/notifications/me'),
+    enabled: Boolean(user),
+  });
 
   const classroomsQuery = useQuery({
     queryKey: ['my-classrooms', activeOrg?.organization_id],
@@ -97,6 +106,57 @@ export function DashboardPage() {
           {(dueReviewsQuery.data?.length ?? 0) > 0 ? 'Repasar ahora' : 'Explorar lección'}
         </Link>
       </section>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          to="/unirse"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-slate-50"
+        >
+          <School className="h-4 w-4 text-[var(--brand-primary)]" /> Unirme a un Aula por Código
+        </Link>
+        <Link
+          to="/vivo"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-slate-50"
+        >
+          <Radio className="h-4 w-4 text-indigo-600" /> Entrar a Clase en Vivo
+        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            void (async () => {
+              if (typeof Notification !== 'undefined') {
+                await Notification.requestPermission();
+              }
+              await apiRequest('/notifications/subscribe', {
+                method: 'POST',
+                body: JSON.stringify({ endpoint: `device://${navigator.userAgent.slice(0, 80)}`, device_label: 'Web PWA' }),
+              });
+              setPushStatus('Recordatorios activados en este dispositivo.');
+            })();
+          }}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-slate-50"
+        >
+          <Bell className="h-4 w-4 text-amber-600" /> {pushStatus || 'Activar avisos de repaso'}
+        </button>
+      </div>
+
+      {notificationsQuery.data && notificationsQuery.data.reminders.length > 0 && (
+        <section className="surface-card p-4 space-y-2">
+          <p className="text-xs font-bold uppercase text-[var(--text-secondary)]">Alertas Inteligentes</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {notificationsQuery.data.reminders.map((r) => (
+              <Link
+                key={r.id}
+                to={r.action_url}
+                className="rounded-lg border border-[var(--border-subtle)] bg-slate-50 px-3 py-2 text-xs hover:bg-[var(--bg-accent-soft)]"
+              >
+                <p className="font-bold text-[var(--brand-primary)]">{r.title}</p>
+                <p className="text-[var(--text-secondary)]">{r.body}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="surface-card p-6">
         <h1 className="text-2xl font-bold">Hola, {user.full_name}</h1>

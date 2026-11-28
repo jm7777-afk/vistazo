@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookMarked, CheckCircle2, Edit3, Sparkles, Trash2 } from 'lucide-react';
+import { BookMarked, CheckCircle2, Download, Edit3, Sparkles, Trash2 } from 'lucide-react';
 import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../ui/StatusStates';
-import { apiRequest } from '../../services/apiClient';
+import { apiRequest, downloadAuthenticatedBlob } from '../../services/apiClient';
 import type {
   CompetencyOut,
   CourseSummary,
@@ -285,6 +285,16 @@ export function GuidesPensumTab({ scope, selectedCourseId }: Props) {
                     <h4 className="mt-1 font-bold text-sm">{g.title}</h4>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void downloadAuthenticatedBlob(`${prefix}/study-guides/${g.id}/pdf`, `guia-${g.id}.pdf`)
+                      }
+                      className="rounded border border-[var(--border-subtle)] px-2.5 py-1 text-xs font-semibold hover:bg-slate-50"
+                      title="Descargar PDF imprimible"
+                    >
+                      <Download className="inline h-3.5 w-3.5 mr-1" /> PDF
+                    </button>
                     <button
                       type="button"
                       onClick={() =>

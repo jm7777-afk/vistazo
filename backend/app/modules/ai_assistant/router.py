@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import TenantContext, get_current_user, require_permission, require_super_admin
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.modules.ai_assistant.doc_extractor import extract_text_from_uploaded_document
 from app.modules.ai_assistant.models import AIGenerationJob, AIProviderConfig
 from app.modules.ai_assistant.schemas import (
     AIJobOut,
     AIProviderConfigOut,
     AIProviderUpdateRequest,
+    AdaptiveRemediationRequest,
+    AdaptiveRemediationResponse,
+    DocumentExtractResponse,
     GenerateBlueprintRequest,
     GenerateBlueprintResponse,
     GenerateDynamicVisualRequest,
@@ -29,6 +33,7 @@ from app.modules.ai_assistant.schemas import (
     SocraticHintResponse,
 )
 from app.modules.ai_assistant.service import (
+    generate_adaptive_remediation,
     generate_course_blueprint,
     generate_dynamic_visual_with_ai,
     generate_lesson_draft_challenges,
@@ -270,6 +275,48 @@ def request_socratic_hint(
         user=current_user,
         challenge_id=challenge_id,
         student_question=payload.student_question,
+    )
+
+
+@router.post("/orgs/{org_id}/ai/extract-document", response_model=DocumentExtractResponse)
+def extract_org_document(
+    file: UploadFile = File(...),
+    _tenant: TenantContext = Depends(require_permission("ai:generate")),
+) -> DocumentExtractResponse:
+    content = file.file.read()
+    text = extract_text_from_uploaded_document(file.filename or "documento.txt", content)
+    return DocumentExtractResponse(
+        filename=file.filename or "documento.txt",
+        char_count=len(text),
+        extracted_text=text,
+    )
+
+
+@router.post("/admin/ai/extract-document", response_model=DocumentExtractResponse)
+def extract_global_document(
+    file: UploadFile = File(...),
+    _admin: User = Depends(require_super_admin),
+) -> DocumentExtractResponse:
+    content = file.file.read()
+    text = extract_text_from_uploaded_document(file.filename or "documento.txt", content)
+    return DocumentExtractResponse(
+        filename=file.filename or "documento.txt",
+        char_count=len(text),
+        extracted_text=text,
+    )
+
+
+@router.post("/ai/adaptive-remediation", response_model=AdaptiveRemediationResponse)
+def request_adaptive_remediation(
+    payload: AdaptiveRemediationRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AdaptiveRemediationResponse:
+    return generate_adaptive_remediation(
+        db,
+        user=current_user,
+        course_id=payload.course_id,
+        missed_prompts=payload.missed_prompts,
     )
 
 

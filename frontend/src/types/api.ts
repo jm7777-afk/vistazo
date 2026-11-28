@@ -24,6 +24,7 @@ export interface UserSummary {
   preferred_ui_profile: UIProfile;
   daily_goal_minutes?: number;
   onboarding_completed?: boolean;
+  email_verified?: boolean;
   is_super_admin: boolean;
   created_at: string;
   memberships: MembershipSummary[];
@@ -449,7 +450,83 @@ export interface ClassroomOut {
   name: string;
   energy_enabled: boolean;
   max_energy: number;
+  invite_code?: string | null;
+  invite_enabled?: boolean;
   status: string;
+}
+
+export interface InvitePreviewOut {
+  classroom_id: string;
+  classroom_name: string;
+  classroom_code: string;
+  organization_id: string;
+  organization_name: string;
+  invite_code: string;
+  invite_enabled: boolean;
+}
+
+export interface JoinClassroomResponse {
+  status: string;
+  organization_id: string;
+  classroom_id: string;
+  classroom_name: string;
+}
+
+export interface LessonPlayerContextOut {
+  lesson_id: string;
+  lesson_title: string;
+  lesson_type: LessonType;
+  estimated_minutes: number;
+  passing_score_pct: number;
+  is_safety_critical: boolean;
+  course_id: string;
+  course_title: string;
+}
+
+export interface DocumentExtractResponse {
+  filename: string;
+  char_count: number;
+  extracted_text: string;
+}
+
+export interface AdaptiveRemediationResponse {
+  job_id: string;
+  provider: string;
+  title: string;
+  remediation_markdown: string;
+  action_steps: string[];
+}
+
+export interface LiveParticipantOut {
+  id: string;
+  display_name: string;
+  score: number;
+  answered_count: number;
+  correct_count: number;
+}
+
+export interface LiveSessionStateOut {
+  id: string;
+  room_code: string;
+  title: string;
+  status: 'waiting' | 'active' | 'finished';
+  current_index: number;
+  total_challenges: number;
+  current_challenge: ChallengePublic | null;
+  leaderboard: LiveParticipantOut[];
+}
+
+export interface NotificationsSummaryOut {
+  due_reviews_count: number;
+  current_streak_days: number;
+  email_verified: boolean;
+  reminders: {
+    id: string;
+    kind: string;
+    title: string;
+    body: string;
+    action_url: string;
+  }[];
 }
 
 export interface ClassroomStudentOut {

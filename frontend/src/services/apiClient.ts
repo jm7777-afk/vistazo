@@ -145,3 +145,27 @@ export async function apiRequest<T>(
   }
   return res.json() as Promise<T>;
 }
+
+export async function downloadAuthenticatedBlob(path: string, filename: string): Promise<void> {
+  const headers = new Headers();
+  if (accessTokenMemory) {
+    headers.set('Authorization', `Bearer ${accessTokenMemory}`);
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers,
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, 'download_error', `No se pudo descargar (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

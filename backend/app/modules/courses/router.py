@@ -12,7 +12,9 @@ from app.api.deps import TenantContext, get_optional_user, get_tenant_context, r
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.db.session import get_db
 from app.modules.auth.models import User
-from app.modules.courses.models import Course, StudyGuide
+from app.modules.challenges.models import Challenge
+from app.modules.courses.models import Course, Lesson, LessonVersion, Module, StudyGuide
+from app.modules.courses.pdf_export import render_lesson_exam_pdf, render_study_guide_pdf
 from app.modules.courses.schemas import (
     CourseCreate,
     CourseDetailOut,
@@ -20,6 +22,7 @@ from app.modules.courses.schemas import (
     CourseUpdate,
     LessonCreate,
     LessonOut,
+    LessonPlayerContextOut,
     LessonUpdate,
     LessonVersionCreate,
     LessonVersionOut,
@@ -520,3 +523,138 @@ def delete_global_study_guide(
 ) -> Response:
     delete_scoped_study_guide(db, guide_id=guide_id, organization_id=None, actor_user_id=admin.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Contexto de Reproductor + Exportación PDF de Guías y Pruebas Fuertes
+# ---------------------------------------------------------------------------
+@router.get("/lesson-versions/{lesson_version_id}/context", response_model=LessonPlayerContextOut)
+def get_lesson_player_context(
+    lesson_version_id: uuid.UUID,
+    current_user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> LessonPlayerContextOut:
+    """Devuelve metadatos de tiempo, tipo y nota mínima para el reproductor de lección/examen."""
+    row = db.execute(
+        select(LessonVersion, Lesson, Course)
+        .join(Lesson, LessonVersion.lesson_id == Lesson.id)
+        .join(Module, Lesson.module_id == Module.id)
+        .join(Course, Module.course_id == Course.id)
+        .where(LessonVersion.id == lesson_version_id, Course.deleted_at.is_(None))
+    ).first()
+    if not row:
+        raise NotFoundError("Versión de lección no encontrada")
+    _lv, lesson, course = row
+    if course.visibility != "public":
+        if not current_user:
+            raise ForbiddenError("Autenticación requerida")
+        if not current_user.is_super_admin:
+            member = db.scalar(
+                select(OrganizationMember).where(
+                    OrganizationMember.organization_id == course.organization_id,
+                    OrganizationMember.user_id == current_user.id,
+                    OrganizationMember.deleted_at.is_(None),
+                    OrganizationMember.status == "active",
+                )
+            )
+            if not member:
+                raise ForbiddenError("Sin acceso al curso")
+    return LessonPlayerContextOut(
+        lesson_id=lesson.id,
+        lesson_title=lesson.title,
+        lesson_type=lesson.lesson_type,
+        estimated_minutes=lesson.estimated_minutes,
+        passing_score_pct=lesson.passing_score_pct,
+        is_safety_critical=lesson.is_safety_critical,
+        course_id=course.id,
+        course_title=course.title,
+    )
+
+
+def _export_guide_pdf_impl(db: Session, guide_id: uuid.UUID, organization_id: uuid.UUID | None) -> Response:
+    cond = StudyGuide.organization_id.is_(None) if organization_id is None else (StudyGuide.organization_id == organization_id)
+    guide = db.scalar(select(StudyGuide).where(StudyGuide.id == guide_id, cond, StudyGuide.deleted_at.is_(None)))
+    if not guide:
+        raise NotFoundError("Guía de estudio no encontrada")
+    course_title = "Vistazo LMS"
+    if guide.course_id:
+        course = db.scalar(select(Course).where(Course.id == guide.course_id))
+        if course:
+            course_title = course.title
+    pdf_bytes = render_study_guide_pdf(guide=guide, course_title=course_title)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="guia-{guide.id}.pdf"'},
+    )
+
+
+@router.get("/orgs/{org_id}/study-guides/{guide_id}/pdf")
+def export_org_study_guide_pdf(
+    guide_id: uuid.UUID,
+    tenant: TenantContext = Depends(get_tenant_context),
+    db: Session = Depends(get_db),
+) -> Response:
+    return _export_guide_pdf_impl(db, guide_id, tenant.organization.id)
+
+
+@router.get("/admin/study-guides/{guide_id}/pdf")
+def export_global_study_guide_pdf(
+    guide_id: uuid.UUID,
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    return _export_guide_pdf_impl(db, guide_id, None)
+
+
+def _export_exam_pdf_impl(
+    db: Session, lv_id: uuid.UUID, organization_id: uuid.UUID | None, include_answers: bool
+) -> Response:
+    cond = Course.organization_id.is_(None) if organization_id is None else (Course.organization_id == organization_id)
+    row = db.execute(
+        select(LessonVersion, Lesson, Course)
+        .join(Lesson, LessonVersion.lesson_id == Lesson.id)
+        .join(Module, Lesson.module_id == Module.id)
+        .join(Course, Module.course_id == Course.id)
+        .where(LessonVersion.id == lv_id, cond, Course.deleted_at.is_(None))
+    ).first()
+    if not row:
+        raise NotFoundError("Versión de lección no encontrada")
+    lv, lesson, course = row
+    challenges = db.scalars(
+        select(Challenge)
+        .where(Challenge.lesson_version_id == lv.id, Challenge.deleted_at.is_(None))
+        .order_by(Challenge.order_index)
+    ).all()
+    pdf_bytes = render_lesson_exam_pdf(
+        lesson=lesson,
+        lv=lv,
+        challenges=list(challenges),
+        course_title=course.title,
+        include_answers=include_answers,
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="evaluacion-{lv.id}.pdf"'},
+    )
+
+
+@router.get("/orgs/{org_id}/lesson-versions/{lesson_version_id}/exam-pdf")
+def export_org_exam_pdf(
+    lesson_version_id: uuid.UUID,
+    include_answers: bool = Query(default=False),
+    tenant: TenantContext = Depends(require_permission("lesson:author")),
+    db: Session = Depends(get_db),
+) -> Response:
+    return _export_exam_pdf_impl(db, lesson_version_id, tenant.organization.id, include_answers)
+
+
+@router.get("/admin/lesson-versions/{lesson_version_id}/exam-pdf")
+def export_global_exam_pdf(
+    lesson_version_id: uuid.UUID,
+    include_answers: bool = Query(default=False),
+    _admin: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    return _export_exam_pdf_impl(db, lesson_version_id, None, include_answers)

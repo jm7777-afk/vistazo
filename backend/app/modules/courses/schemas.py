@@ -146,3 +146,14 @@ class StudyGuideOut(BaseModel):
     ai_generated: bool
     created_at: datetime
     updated_at: datetime
+
+
+class LessonPlayerContextOut(BaseModel):
+    lesson_id: uuid.UUID
+    lesson_title: str
+    lesson_type: str
+    estimated_minutes: int
+    passing_score_pct: int
+    is_safety_critical: bool
+    course_id: uuid.UUID
+    course_title: str

@@ -226,3 +226,24 @@ class AIJobOut(BaseModel):
     latency_ms: int | None
     error_code: str | None
     created_at: datetime
+
+
+class DocumentExtractResponse(BaseModel):
+    filename: str
+    char_count: int
+    extracted_text: str
+
+
+class AdaptiveRemediationRequest(BaseModel):
+    course_id: uuid.UUID | None = None
+    missed_prompts: list[str] = Field(min_length=1, max_length=12)
+
+
+class AdaptiveRemediationResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    job_id: uuid.UUID
+    provider: str
+    title: str
+    remediation_markdown: str
+    action_steps: list[str]

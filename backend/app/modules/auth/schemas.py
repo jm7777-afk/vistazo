@@ -57,6 +57,7 @@ class UserSummary(BaseModel):
     preferred_ui_profile: str
     daily_goal_minutes: int = 5
     onboarding_completed: bool = False
+    email_verified: bool = False
     is_super_admin: bool
     created_at: datetime
     memberships: list[MembershipSummary] = Field(default_factory=list)
@@ -74,3 +75,16 @@ class TokenResponse(BaseModel):
     expires_in_seconds: int
     csrf_token: str
     user: UserSummary
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class VerifyTokenRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=256)

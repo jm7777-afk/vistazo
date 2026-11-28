@@ -1,13 +1,16 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
 import { LoadingState } from '../components/ui/StatusStates';
+import { AccountRecoveryPage } from '../pages/AccountRecoveryPage';
 import { LoginPage, RegisterPage } from '../pages/AuthPages';
 import { CatalogPage } from '../pages/CatalogPage';
 import { MyCertificatesPage, VerifyCertificatePage } from '../pages/CertificatesPage';
 import { CourseDetailPage } from '../pages/CourseDetailPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { JoinClassroomPage } from '../pages/JoinClassroomPage';
 import { LandingPage } from '../pages/LandingPage';
 import { LessonPlayerPage } from '../pages/LessonPlayerPage';
+import { LiveQuizPage } from '../pages/LiveQuizPage';
 import { OnboardingPage } from '../pages/OnboardingPage';
 import { CoordinatorPage, InstructorPage, ProfilePage, SuperAdminPage } from '../pages/RoleDashboards';
 import { SpacedReviewPage } from '../pages/SpacedReviewPage';
@@ -30,6 +33,11 @@ export function AppRouter() {
             <Route path="/catalog" element={<CatalogPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/recuperar-cuenta" element={<AccountRecoveryPage />} />
+            <Route path="/unirse" element={<JoinClassroomPage />} />
+            <Route path="/unirse/:inviteCode" element={<JoinClassroomPage />} />
+            <Route path="/vivo" element={<LiveQuizPage />} />
+            <Route path="/vivo/:roomCode" element={<LiveQuizPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/reviews" element={<SpacedReviewPage />} />
             <Route path="/library" element={<VisualLibraryPage />} />

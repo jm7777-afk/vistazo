@@ -231,6 +231,28 @@ def build_dynamic_visual_user_prompt(
     )
 
 
+REMEDIATION_SYSTEM_PROMPT = """
+Eres un Coach de Recuperación Académica. El estudiante cometió errores en retos o en una Prueba Fuerte.
+Con base en los temas fallados y las guías del curso, genera una micro-guía clara de refuerzo y pasos concretos de estudio.
+Devuelve EXCLUSIVAMENTE JSON válido:
+{
+  "title": "Plan de Refuerzo Personalizado",
+  "remediation_markdown": "## Puntos a reforzar...",
+  "action_steps": ["Paso 1...", "Paso 2...", "Paso 3..."]
+}
+""".strip()
+
+
+def build_remediation_user_prompt(*, missed_prompts: list[str], study_guide_context: str) -> str:
+    missed_block = "\n".join(f"- {p[:200]}" for p in missed_prompts[:8])
+    return (
+        "<remediation_request>\n"
+        f"<missed_items>\n{missed_block}\n</missed_items>\n"
+        f"<study_guide_context>\n{study_guide_context}\n</study_guide_context>\n"
+        "</remediation_request>"
+    )
+
+
 def build_socratic_user_prompt(
     *,
     education_level: str,
@@ -240,12 +262,19 @@ def build_socratic_user_prompt(
     authorized_explanation: str,
     attempt_count: int,
     student_question: str,
+    study_guide_context: str = "",
 ) -> str:
+    guide_block = (
+        f"\n<authorized_study_guide>\n{study_guide_context[:1200]}\n</authorized_study_guide>"
+        if study_guide_context
+        else ""
+    )
     return (
         f"<education_level>{education_level}</education_level>\n"
         f"<ui_profile>{ui_profile}</ui_profile>\n"
         f"<is_safety_critical>{str(is_safety_critical).lower()}</is_safety_critical>\n"
         f"<failed_attempts>{attempt_count}</failed_attempts>\n"
-        f"<authorized_lesson_context>\nReto: {challenge_prompt}\nConcepto base: {authorized_explanation}\n</authorized_lesson_context>\n"
+        f"<authorized_lesson_context>\nReto: {challenge_prompt}\nConcepto base: {authorized_explanation}\n</authorized_lesson_context>"
+        f"{guide_block}\n"
         f"<student_question_or_attempt>{student_question or 'Necesito una pista sin que me des la respuesta.'}</student_question_or_attempt>"
     )

@@ -34,7 +34,7 @@ class AIGenerationJob(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "ai_generation_jobs"
     __table_args__ = (
         CheckConstraint(
-            "job_type IN ('lesson_generator', 'socratic_tutor', 'blueprint_architect', 'study_guide', 'strong_exam', 'dynamic_visual')",
+            "job_type IN ('lesson_generator', 'socratic_tutor', 'blueprint_architect', 'study_guide', 'strong_exam', 'dynamic_visual', 'adaptive_remediation')",
             name="ck_ai_job_type",
         ),
         CheckConstraint("status IN ('pending', 'completed', 'failed', 'fallback_used')", name="ck_ai_job_status"),

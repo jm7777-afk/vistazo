@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Edit3, Flame, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { CheckCircle2, Download, Edit3, Flame, Play, Plus, Radio, Sparkles, Trash2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { EmptyState, ErrorBanner, LoadingState, SuccessBanner } from '../ui/StatusStates';
-import { apiRequest } from '../../services/apiClient';
+import { apiRequest, downloadAuthenticatedBlob } from '../../services/apiClient';
+import { VisualZoneEditor, type EditableZone } from './VisualZoneEditor';
 import type {
   ChallengeAuthorOut,
   ChallengeType,
@@ -11,6 +12,7 @@ import type {
   CourseSummary,
   GenerateLessonDraftResponse,
   LessonVersionOut,
+  LiveSessionStateOut,
   MediaAssetOut,
 } from '../../types/api';
 import { scopePrefix, type StudioScope } from './studioHelpers';
@@ -33,9 +35,12 @@ export function ChallengesExamTab({
   onVersionSelected,
 }: Props) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const prefix = scopePrefix(scope);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectedLvId, setSelectedLvId] = useState('');
+  const [customZones, setCustomZones] = useState<EditableZone[]>([]);
+  const [correctZoneId, setCorrectZoneId] = useState('');
 
   // IA generators
   const [sourceText, setSourceText] = useState('');
@@ -224,13 +229,18 @@ export function ChallengesExamTab({
       const selectedMedia = mediaQuery.data?.find((m) => m.id === attachedMediaId);
       const specZones = (selectedMedia?.dynamic_spec_json as { zones?: Record<string, unknown>[] } | null)?.zones;
       const zones =
-        specZones && specZones.length >= 2
-          ? specZones
-          : [
-              { id: 'z1', shape: 'circle', x: 0.35, y: 0.45, r: 0.1, label: optCorrect || 'Zona correcta' },
-              { id: 'z2', shape: 'circle', x: 0.7, y: 0.45, r: 0.1, label: optWrong || 'Zona alternativa' },
-            ];
-      const firstId = String((zones[0] as { id?: string }).id || 'z1');
+        customZones.length >= 2
+          ? customZones
+          : specZones && specZones.length >= 2
+            ? specZones
+            : [
+                { id: 'z1', shape: 'circle', x: 0.35, y: 0.45, r: 0.1, label: optCorrect || 'Zona correcta' },
+                { id: 'z2', shape: 'circle', x: 0.7, y: 0.45, r: 0.1, label: optWrong || 'Zona alternativa' },
+              ];
+      const firstId =
+        customZones.length >= 2 && correctZoneId
+          ? correctZoneId
+          : String((zones[0] as { id?: string }).id || 'z1');
       payload_json = {
         instruction: 'Selecciona la zona correspondiente en el esquema.',
         diagram_media_id: attachedMediaId || null,
@@ -305,6 +315,20 @@ export function ChallengesExamTab({
       setFeedback('Versión aprobada y publicada para estudiantes.');
       void queryClient.invalidateQueries({ queryKey: ['studio-versions', prefix, activeLessonId] });
       void queryClient.invalidateQueries({ queryKey: ['studio-course-detail', activeCourseId] });
+    },
+  });
+
+  const launchLiveMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<LiveSessionStateOut>(`${prefix}/live-sessions`, {
+        method: 'POST',
+        body: JSON.stringify({
+          lesson_version_id: activeLvId,
+          title: allLessons.find((l) => l.id === activeLessonId)?.title || 'Clase en Vivo Vistazo',
+        }),
+      }),
+    onSuccess: (room) => {
+      navigate(`/vivo/${room.room_code}?host=1`);
     },
   });
 
@@ -397,6 +421,42 @@ export function ChallengesExamTab({
               {challengesQuery.data?.length ?? 0} retos cargados
             </span>
             <div className="flex flex-wrap gap-2">
+              {Boolean(challengesQuery.data?.length) && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void downloadAuthenticatedBlob(
+                        `${prefix}/lesson-versions/${activeLv.id}/exam-pdf?include_answers=false`,
+                        `evaluacion-${activeLv.id}.pdf`
+                      )
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
+                  >
+                    <Download className="h-3.5 w-3.5" /> PDF Alumno
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void downloadAuthenticatedBlob(
+                        `${prefix}/lesson-versions/${activeLv.id}/exam-pdf?include_answers=true`,
+                        `evaluacion-clave-${activeLv.id}.pdf`
+                      )
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
+                  >
+                    <Download className="h-3.5 w-3.5" /> PDF + Clave
+                  </button>
+                  <button
+                    type="button"
+                    disabled={launchLiveMutation.isPending}
+                    onClick={() => launchLiveMutation.mutate()}
+                    className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
+                  >
+                    <Radio className="h-3.5 w-3.5" /> Lanzar Clase en Vivo
+                  </button>
+                </>
+              )}
               {activeLv.status === 'published' && (
                 <Link
                   to={`/lessons/${activeLv.id}`}
@@ -528,7 +588,7 @@ export function ChallengesExamTab({
               className="w-full rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm"
             />
 
-            {(chType === 'visual_concept_card' || chType === 'decision_simulation' || chType === 'interactive_zones') && (
+            {(chType === 'visual_concept_card' || chType === 'decision_simulation') && (
               <div className="grid gap-2 sm:grid-cols-2">
                 <input
                   placeholder="Respuesta / opción correcta"
@@ -543,6 +603,16 @@ export function ChallengesExamTab({
                   className="rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-xs"
                 />
               </div>
+            )}
+
+            {chType === 'interactive_zones' && (
+              <VisualZoneEditor
+                imageUrl={mediaQuery.data?.find((m) => m.id === attachedMediaId)?.signed_url}
+                zones={customZones}
+                correctZoneId={correctZoneId}
+                onChangeZones={setCustomZones}
+                onChangeCorrectZoneId={setCorrectZoneId}
+              />
             )}
 
             {chType === 'sequence_ordering' && (

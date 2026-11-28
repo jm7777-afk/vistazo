@@ -158,6 +158,8 @@ class DeterministicFallbackProvider(BaseLLMProvider):
             text = json.dumps(self._build_strong_exam(user_prompt), ensure_ascii=False)
         elif "<dynamic_visual_request>" in user_prompt:
             text = json.dumps(self._build_dynamic_visual(user_prompt), ensure_ascii=False)
+        elif "<remediation_request>" in user_prompt:
+            text = json.dumps(self._build_remediation(user_prompt), ensure_ascii=False)
         elif "<instructor_source_text>" in user_prompt:
             text = json.dumps(self._build_lesson_draft(user_prompt), ensure_ascii=False)
         else:
@@ -627,6 +629,26 @@ class DeterministicFallbackProvider(BaseLLMProvider):
             "recommended_question": f"Identifica en el diagrama cuál nodo representa el primer punto clave de '{topic}'.",
             "correct_node_id": "z1",
             "explanation": f"El nodo 1 sintetiza el fundamento inicial: {sentences[0][:140]}.",
+        }
+
+    def _build_remediation(self, user_prompt: str) -> dict:
+        missed = self._extract_tag(user_prompt, "missed_items")
+        guide = self._extract_tag(user_prompt, "study_guide_context")
+        lines = [ln.lstrip("- ").strip() for ln in missed.splitlines() if ln.strip()]
+        bullets = "\n".join(f"- **Punto crítico:** {ln}" for ln in lines[:6]) or "- Refuerzo general de fundamentos"
+        guide_excerpt = f"\n\n### Referencia de tu Guía del Curso\n{guide[:360]}" if guide else ""
+        return {
+            "title": "Micro-Guía de Refuerzo Adaptativo",
+            "remediation_markdown": (
+                f"## Diagnóstico de Repaso\nDetectamos {len(lines)} ítems que requieren consolidación:\n"
+                f"{bullets}{guide_excerpt}\n\n"
+                "### Técnica recomendada\nResuelve 5 minutos de Repaso Espaciado SM-2 antes de reintentar la Prueba Fuerte."
+            ),
+            "action_steps": [
+                "Relee los criterios previos de cada reto fallado.",
+                "Completa una sesión Flash en Repaso (/reviews).",
+                "Vuelve a rendir la Prueba Fuerte buscando 85%+.",
+            ],
         }
 
     def _build_socratic_hint(self, user_prompt: str) -> str:
